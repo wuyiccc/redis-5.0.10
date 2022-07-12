@@ -1929,6 +1929,9 @@ void checkTcpBacklogSettings(void) {
  * impossible to bind, or no bind addresses were specified in the server
  * configuration but the function is not able to bind * for at least
  * one of the IPv4 or IPv6 protocols. */
+/**
+ * 启动监听, 创建socket, 支持ipv4/ipv6
+ */
 int listenToPort(int port, int *fds, int *count) {
     int j;
 
@@ -2028,14 +2031,18 @@ void resetServerStats(void) {
     server.stat_net_output_bytes = 0;
     server.aof_delayed_fsync = 0;
 }
-
+/**
+ * 启动服务器
+ */
 void initServer(void) {
     int j;
 
+    // 设置信号
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
     setupSignalHandlers();
 
+    // 打开syslog
     if (server.syslog_enabled) {
         openlog(server.syslog_ident, LOG_PID | LOG_NDELAY | LOG_NOWAIT,
             server.syslog_facility);
@@ -2045,6 +2052,7 @@ void initServer(void) {
     server.pid = getpid();
     server.current_client = NULL;
     server.fixed_time_expire = 0;
+    // 客户端链表
     server.clients = listCreate();
     server.clients_index = raxNew();
     server.clients_to_close = listCreate();
@@ -2059,8 +2067,10 @@ void initServer(void) {
     server.clients_paused = 0;
     server.system_memory_size = zmalloc_get_memory_size();
 
+    // 创建共享对象
     createSharedObjects();
     adjustOpenFilesLimit();
+    // 创建事件处理
     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
     if (server.el == NULL) {
         serverLog(LL_WARNING,
@@ -2068,6 +2078,7 @@ void initServer(void) {
             strerror(errno));
         exit(1);
     }
+    // 创建db
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
     /* Open the TCP listening socket for the user commands. */
@@ -2094,6 +2105,7 @@ void initServer(void) {
     }
 
     /* Create the Redis databases, and initialize other internal state. */
+    // 创建redis数据库
     for (j = 0; j < server.dbnum; j++) {
         server.db[j].dict = dictCreate(&dbDictType,NULL);
         server.db[j].expires = dictCreate(&keyptrDictType,NULL);
@@ -2143,6 +2155,7 @@ void initServer(void) {
     /* Create the timer callback, this is our way to process many background
      * operations incrementally, like clients timeout, eviction of unaccessed
      * expired keys and so forth. */
+    // 创建时间事件
     if (aeCreateTimeEvent(server.el, 1, serverCron, NULL, NULL) == AE_ERR) {
         serverPanic("Can't create event loop timers.");
         exit(1);
@@ -2164,6 +2177,7 @@ void initServer(void) {
 
     /* Register a readable event for the pipe used to awake the event loop
      * when a blocked client in a module needs attention. */
+    // 创建文件事件
     if (aeCreateFileEvent(server.el, server.module_blocked_pipe[0], AE_READABLE,
         moduleBlockedClientPipeReadable,NULL) == AE_ERR) {
             serverPanic(
@@ -2172,6 +2186,7 @@ void initServer(void) {
     }
 
     /* Open the AOF file if needed. */
+    // 打开aof文件
     if (server.aof_state == AOF_ON) {
         server.aof_fd = open(server.aof_filename,
                                O_WRONLY|O_APPEND|O_CREAT,0644);
