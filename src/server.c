@@ -3901,6 +3901,7 @@ void loadDataFromDisk(void) {
         if (loadAppendOnlyFile(server.aof_filename) == C_OK)
             serverLog(LL_NOTICE,"DB loaded from append only file: %.3f seconds",(float)(ustime()-start)/1000000);
     } else {
+        // 加载rdb
         rdbSaveInfo rsi = RDB_SAVE_INFO_INIT;
         if (rdbLoad(server.rdb_filename,&rsi) == C_OK) {
             serverLog(LL_NOTICE,"DB loaded from disk: %.3f seconds",
@@ -4094,6 +4095,7 @@ int main(int argc, char **argv) {
     getRandomHexChars(hashseed,sizeof(hashseed));
     dictSetHashFunctionSeed((uint8_t*)hashseed);
     server.sentinel_mode = checkForSentinelMode(argc,argv);
+    // 初始化配置文件
     initServerConfig();
     moduleInitModulesSystem();
 
@@ -4107,6 +4109,7 @@ int main(int argc, char **argv) {
     /* We need to init sentinel right now as parsing the configuration file
      * in sentinel mode will have the effect of populating the sentinel
      * data structures with master nodes to monitor. */
+    // 哨兵初始化
     if (server.sentinel_mode) {
         initSentinelConfig();
         initSentinel();
@@ -4203,8 +4206,10 @@ int main(int argc, char **argv) {
 
     server.supervised = redisIsSupervised(server.supervised_mode);
     int background = server.daemonize && !server.supervised;
+    // 后台启动
     if (background) daemonize();
 
+    // 启动服务器
     initServer();
     if (background || server.pidfile) createPidFile();
     redisSetProcTitle(argv[0]);
@@ -4244,6 +4249,7 @@ int main(int argc, char **argv) {
 
     aeSetBeforeSleepProc(server.el,beforeSleep);
     aeSetAfterSleepProc(server.el,afterSleep);
+    // 监听事件
     aeMain(server.el);
     aeDeleteEventLoop(server.el);
     return 0;
