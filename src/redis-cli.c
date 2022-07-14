@@ -1057,6 +1057,7 @@ static int cliReadReply(int output_raw_strings) {
         cliRefreshPrompt();
     }
 
+    /// 响应
     if (output) {
         if (output_raw_strings) {
             out = cliFormatReplyRaw(reply);
@@ -1145,6 +1146,7 @@ static int cliSendCommand(int argc, char **argv, long repeat) {
         argvlen[j] = sdslen(argv[j]);
 
     while(repeat < 0 || repeat-- > 0) {
+        // 命令转resp格式
         redisAppendCommandArgv(context,argc,(const char**)argv,argvlen);
         while (config.monitor_mode) {
             if (cliReadReply(output_raw) != REDIS_OK) exit(1);
@@ -1685,6 +1687,7 @@ static void repl(void) {
 
     config.interactive = 1;
     linenoiseSetMultiLine(1);
+    // 设置回调
     linenoiseSetCompletionCallback(completionCallback);
     linenoiseSetHintsCallback(hintsCallback);
     linenoiseSetFreeHintsCallback(freeHintsCallback);
@@ -1700,7 +1703,9 @@ static void repl(void) {
         cliLoadPreferences();
     }
 
+    // 刷新输入框
     cliRefreshPrompt();
+    // 利用linenoise获得输入信息
     while((line = linenoise(context ? config.prompt : "not connected> ")) != NULL) {
         if (line[0] != '\0') {
             long repeat = 1;
@@ -1738,6 +1743,7 @@ static void repl(void) {
                 linenoiseFree(line);
                 continue;
             } else if (argc > 0) {
+                // 如果是quit与exit参数, 那么直接退出
                 if (strcasecmp(argv[0],"quit") == 0 ||
                     strcasecmp(argv[0],"exit") == 0)
                 {
@@ -1764,6 +1770,7 @@ static void repl(void) {
                 } else if (argc == 1 && !strcasecmp(argv[0],"clear")) {
                     linenoiseClearScreen();
                 } else {
+                    // 进行命令发送
                     long long start_time = mstime(), elapsed;
 
                     issueCommandRepeat(argc-skipargs, argv+skipargs, repeat);
@@ -7065,6 +7072,7 @@ int main(int argc, char **argv) {
         config.output = OUTPUT_STANDARD;
     config.mb_delim = sdsnew("\n");
 
+    // 用户设置
     firstarg = parseOptions(argc,argv);
     argc -= firstarg;
     argv += firstarg;
@@ -7081,7 +7089,7 @@ int main(int argc, char **argv) {
         }
         clusterManagerMode(proc);
     }
-
+    // 根据不同的设置选择不同的模式, 默认是repl
     /* Latency mode */
     if (config.latency_mode) {
         if (cliConnect(0) == REDIS_ERR) exit(1);

@@ -1315,6 +1315,7 @@ int processMultibulkBuffer(client *c) {
 
         if (ll <= 0) return C_OK;
 
+        // 参数个数
         c->multibulklen = ll;
 
         /* Setup argv array on client structure */
@@ -1323,6 +1324,7 @@ int processMultibulkBuffer(client *c) {
     }
 
     serverAssertWithInfo(c,NULL,c->multibulklen > 0);
+    // 根据参数个数循环拆解参数
     while(c->multibulklen) {
         /* Read bulk length if unknown */
         if (c->bulklen == -1) {
