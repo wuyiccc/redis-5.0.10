@@ -739,6 +739,7 @@ typedef struct client {
     int reqtype;            /* Request protocol type: PROTO_REQ_* */
     int multibulklen;       /* Number of multi bulk arguments left to read. */
     long bulklen;           /* Length of bulk argument in multi bulk request. */
+    // 应答列表
     list *reply;            /* List of reply objects to send to the client. */
     unsigned long long reply_bytes; /* Tot bytes of objects in reply list. */
     size_t sentlen;         /* Amount of bytes already sent in the current
@@ -777,6 +778,7 @@ typedef struct client {
 
     /* Response buffer */
     int bufpos;
+    // 应答缓冲区
     char buf[PROTO_REPLY_CHUNK_BYTES];
 } client;
 
@@ -1309,10 +1311,22 @@ typedef struct pubsubPattern {
 typedef void redisCommandProc(client *c);
 typedef int *redisGetKeysProc(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
 struct redisCommand {
+    // 命令名称
     char *name;
+    // 命令处理函数
     redisCommandProc *proc;
+    // 参数数目校验
+    // 如果arity > 0, 那么参数数目必须等于arity, 如果 arity < 0, 那么参数数目必须大于等于 -arity
     int arity;
+    // 命令标识:
+    // w: 写命令
+    // r: 读命令
+    // F: 命令超时
+    // m: 如果内存不足, 就不执行
+    // rF: 读命令, 命令超时, 会记录延时
+    // wm: 写命令, 如果内存不足, 就不执行
     char *sflags; /* Flags as string representation, one char per flag. */
+    // 命令的二进制标识
     int flags;    /* The actual flags, obtained from the 'sflags' field. */
     /* Use a function to determine keys arguments in a command line.
      * Used for Redis Cluster redirect. */
@@ -1321,6 +1335,7 @@ struct redisCommand {
     int firstkey; /* The first argument that's a key (0 = no keys) */
     int lastkey;  /* The last argument that's a key */
     int keystep;  /* The step between first and last key */
+    // 命令执行时间, 从服务器启动至今的执行时间, 命令执行次数
     long long microseconds, calls;
 };
 

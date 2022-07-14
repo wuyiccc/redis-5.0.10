@@ -2619,6 +2619,7 @@ int processCommand(client *c) {
             (char*)c->argv[0]->ptr, args);
         sdsfree(args);
         return C_OK;
+        // 验证参数数目
     } else if ((c->cmd->arity > 0 && c->cmd->arity != c->argc) ||
                (c->argc < -c->cmd->arity)) {
         flagTransaction(c);
@@ -2667,6 +2668,7 @@ int processCommand(client *c) {
      * the event loop since there is a busy Lua script running in timeout
      * condition, to avoid mixing the propagation of scripts with the
      * propagation of DELs due to eviction. */
+    // 最大内存校验
     if (server.maxmemory && !server.lua_timedout) {
         int out_of_memory = freeMemoryIfNeededAndSafe() == C_ERR;
         /* freeMemoryIfNeeded may flush slave output buffers. This may result
@@ -2788,6 +2790,7 @@ int processCommand(client *c) {
         queueMultiCommand(c);
         addReply(c,shared.queued);
     } else {
+        // 真正执行命令
         call(c,CMD_CALL_FULL);
         c->woff = server.master_repl_offset;
         if (listLength(server.ready_keys))

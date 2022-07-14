@@ -183,6 +183,7 @@ void clientInstallWriteHandler(client *c) {
          * a system call. We'll only really install the write handler if
          * we'll not be able to write the whole reply at once. */
         c->flags |= CLIENT_PENDING_WRITE;
+        // 写入用户待处理列表, beforeSleep函数遍历
         listAddNodeHead(server.clients_pending_write,c);
     }
 }
@@ -1095,6 +1096,7 @@ int handleClientsWithPendingWrites(void) {
         if (c->flags & CLIENT_PROTECTED) continue;
 
         /* Try to write buffers to the client socket. */
+        // 向客户端写入数据
         if (writeToClient(c->fd,c,0) == C_ERR) continue;
 
         /* If after the synchronous writes above we still have data to
