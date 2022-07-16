@@ -1145,6 +1145,7 @@ ssize_t rdbSaveSingleModuleAux(rio *rdb, int when, moduleType *mt) {
 int rdbSaveRio(rio *rdb, int *error, int flags, rdbSaveInfo *rsi) {
     dictIterator *di = NULL;
     dictEntry *de;
+    // redis魔术数: REDIS0009
     char magic[10];
     int j;
     uint64_t cksum;
@@ -1164,6 +1165,7 @@ int rdbSaveRio(rio *rdb, int *error, int flags, rdbSaveInfo *rsi) {
         di = dictGetSafeIterator(d);
 
         /* Write the SELECT DB opcode */
+        // db_num
         if (rdbSaveType(rdb,RDB_OPCODE_SELECTDB) == -1) goto werr;
         if (rdbSaveLen(rdb,j) == -1) goto werr;
 
@@ -1186,6 +1188,7 @@ int rdbSaveRio(rio *rdb, int *error, int flags, rdbSaveInfo *rsi) {
 
             initStaticStringObject(key,keystr);
             expire = getExpire(db,&key);
+            // kvpair
             if (rdbSaveKeyValuePair(rdb,&key,o,expire) == -1) goto werr;
 
             /* When this RDB is produced as part of an AOF rewrite, move
@@ -1269,6 +1272,7 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
     rio rdb;
     int error = 0;
 
+    // 创建临时文件
     snprintf(tmpfile,256,"temp-%d.rdb", (int) getpid());
     fp = fopen(tmpfile,"w");
     if (!fp) {
@@ -1299,6 +1303,7 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
 
     /* Use RENAME to make sure the DB file is changed atomically only
      * if the generate DB file is ok. */
+    // 临时文件修改文件名覆盖源文件
     if (rename(tmpfile,filename) == -1) {
         char *cwdp = getcwd(cwd,MAXPATHLEN);
         serverLog(LL_WARNING,
@@ -1325,6 +1330,9 @@ werr:
     return C_ERR;
 }
 
+/**
+ * 进行rdb
+ */
 int rdbSaveBackground(char *filename, rdbSaveInfo *rsi) {
     pid_t childpid;
     long long start;
@@ -1336,12 +1344,15 @@ int rdbSaveBackground(char *filename, rdbSaveInfo *rsi) {
     openChildInfoPipe();
 
     start = ustime();
+    // 调用os的fork 来复制一个子进程, linux下性能最好
     if ((childpid = fork()) == 0) {
         int retval;
 
         /* Child */
         closeListeningSockets(0);
         redisSetProcTitle("redis-rdb-bgsave");
+
+        // save rdb文件
         retval = rdbSave(filename,rsi);
         if (retval == C_OK) {
             size_t private_dirty = zmalloc_get_private_dirty(-1);

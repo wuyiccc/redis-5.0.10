@@ -1095,7 +1095,7 @@ int handleClientsWithPendingWrites(void) {
          * that may trigger write error or recreate handler. */
         if (c->flags & CLIENT_PROTECTED) continue;
 
-        /* Try to write buffers to the client socket. */
+        /* Try to write buffers to the client socket. *d
         // 向客户端写入数据
         if (writeToClient(c->fd,c,0) == C_ERR) continue;
 

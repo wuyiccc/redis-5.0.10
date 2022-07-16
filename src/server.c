@@ -1273,6 +1273,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
         /* If there is not a background saving/rewrite in progress check if
          * we have to save/rewrite now. */
         for (j = 0; j < server.saveparamslen; j++) {
+            // 配置参数
             struct saveparam *sp = server.saveparams+j;
 
             /* Save if we reached the given amount of changes,
@@ -1289,6 +1290,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
                     sp->changes, (int)sp->seconds);
                 rdbSaveInfo rsi, *rsiptr;
                 rsiptr = rdbPopulateSaveInfo(&rsi);
+                // 执行rdb
                 rdbSaveBackground(server.rdb_filename,rsiptr);
                 break;
             }
