@@ -1304,7 +1304,7 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
     /* Use RENAME to make sure the DB file is changed atomically only
      * if the generate DB file is ok. */
     // 临时文件修改文件名覆盖源文件
-    if (rename(tmpfile,filename) == -1) {
+    if (rename(tmpfile,filename)    == -1) {
         char *cwdp = getcwd(cwd,MAXPATHLEN);
         serverLog(LL_WARNING,
             "Error moving temp DB file %s on the final "
