@@ -247,6 +247,7 @@ void stopAppendOnly(void) {
 
 /* Called when the user switches from "appendonly no" to "appendonly yes"
  * at runtime using the CONFIG command. */
+// 开启AOF, 场景: 主从复制, 从机开启了aof, 则会关闭aof, 复制完再开启
 int startAppendOnly(void) {
     char cwd[MAXPATHLEN]; /* Current working dir path for error messages. */
     int newfd;
@@ -273,8 +274,10 @@ int startAppendOnly(void) {
          * accumulating the AOF buffer. */
         if (server.aof_child_pid != -1) {
             serverLog(LL_WARNING,"AOF was enabled but there is already an AOF rewriting in background. Stopping background AOF and starting a rewrite now.");
+            // 杀掉子进程
             killAppendOnlyChild();
         }
+        // 开启aof重写
         if (rewriteAppendOnlyFileBackground() == C_ERR) {
             close(newfd);
             serverLog(LL_WARNING,"Redis needs to enable the AOF but can't trigger a background AOF rewrite operation. Check the above logs for more info about the error.");
@@ -1652,9 +1655,11 @@ int rewriteAppendOnlyFileBackground(void) {
 void bgrewriteaofCommand(client *c) {
     if (server.aof_child_pid != -1) {
         addReplyError(c,"Background append only file rewriting already in progress");
+    // 没有子进程在进行rdb和aof重写, 并且设置重写为待调度执行
     } else if (server.rdb_child_pid != -1) {
         server.aof_rewrite_scheduled = 1;
         addReplyStatus(c,"Background append only file rewriting scheduled");
+    // 有子进程在进行aof重写
     } else if (rewriteAppendOnlyFileBackground() == C_OK) {
         addReplyStatus(c,"Background append only file rewriting started");
     } else {
