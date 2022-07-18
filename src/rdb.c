@@ -1929,7 +1929,8 @@ int rdbLoadRio(rio *rdb, rdbSaveInfo *rsi, int loading_aof) {
     /* Key-specific attributes, set by opcodes before the key type. */
     long long lru_idle = -1, lfu_freq = -1, expiretime = -1, now = mstime();
     long long lru_clock = LRU_CLOCK();
-    
+
+    // 循环读取数据
     while(1) {
         robj *key, *val;
 
@@ -1944,6 +1945,7 @@ int rdbLoadRio(rio *rdb, rdbSaveInfo *rsi, int loading_aof) {
             expiretime = rdbLoadTime(rdb);
             expiretime *= 1000;
             continue; /* Read next opcode. */
+        // 过期时间
         } else if (type == RDB_OPCODE_EXPIRETIME_MS) {
             /* EXPIRETIME_MS: milliseconds precision expire times introduced
              * with RDB v3. Like EXPIRETIME but no with more precision. */
@@ -1984,6 +1986,7 @@ int rdbLoadRio(rio *rdb, rdbSaveInfo *rsi, int loading_aof) {
                 goto eoferr;
             if ((expires_size = rdbLoadLen(rdb,NULL)) == RDB_LENERR)
                 goto eoferr;
+            // 字典扩容
             dictExpand(db->dict,db_size);
             dictExpand(db->expires,expires_size);
             continue; /* Read next opcode. */
@@ -2082,9 +2085,11 @@ int rdbLoadRio(rio *rdb, rdbSaveInfo *rsi, int loading_aof) {
             }
         }
 
+        // 读取key
         /* Read key */
         if ((key = rdbLoadStringObject(rdb)) == NULL) goto eoferr;
         /* Read value */
+        // 读取value
         if ((val = rdbLoadObject(type,rdb,key)) == NULL) goto eoferr;
         /* Check if the key already expired. This function is used when loading
          * an RDB file from disk, either at startup, or when an RDB was
@@ -2153,6 +2158,7 @@ int rdbLoad(char *filename, rdbSaveInfo *rsi) {
     if ((fp = fopen(filename,"r")) == NULL) return C_ERR;
     startLoading(fp);
     rioInitWithFile(&rdb,fp);
+    //加载数据
     retval = rdbLoadRio(&rdb,rsi,0);
     fclose(fp);
     stopLoading();

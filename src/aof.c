@@ -748,14 +748,17 @@ int loadAppendOnlyFile(char *filename) {
 
     /* Temporarily disable AOF, to prevent EXEC from feeding a MULTI
      * to the same file we're about to read. */
+    // 临时关闭aof
     server.aof_state = AOF_OFF;
 
+    // 创建伪客户端
     fakeClient = createFakeClient();
     startLoading(fp);
 
     /* Check if this AOF file has an RDB preamble. In that case we need to
      * load the RDB file and later continue loading the AOF tail. */
     char sig[5]; /* "REDIS" */
+    // 判断是否是混合持久化
     if (fread(sig,1,5,fp) != 5 || memcmp(sig,"REDIS",5) != 0) {
         /* No RDB preamble, seek back at 0 offset. */
         if (fseek(fp,0,SEEK_SET) == -1) goto readerr;
@@ -766,6 +769,7 @@ int loadAppendOnlyFile(char *filename) {
         serverLog(LL_NOTICE,"Reading RDB preamble from AOF file...");
         if (fseek(fp,0,SEEK_SET) == -1) goto readerr;
         rioInitWithFile(&rdb,fp);
+        // 加载rdb数据
         if (rdbLoadRio(&rdb,NULL,1) != C_OK) {
             serverLog(LL_WARNING,"Error reading the RDB preamble of the AOF file, AOF loading aborted");
             goto readerr;
@@ -775,6 +779,7 @@ int loadAppendOnlyFile(char *filename) {
     }
 
     /* Read the actual AOF file, in REPL format, command by command. */
+    // 读取aof数据
     while(1) {
         int argc, j;
         unsigned long len;
@@ -806,6 +811,7 @@ int loadAppendOnlyFile(char *filename) {
         fakeClient->argc = argc;
         fakeClient->argv = argv;
 
+        // 依次读取参数
         for (j = 0; j < argc; j++) {
             /* Parse the argument len. */
             char *readres = fgets(buf,sizeof(buf),fp);
@@ -837,6 +843,7 @@ int loadAppendOnlyFile(char *filename) {
             }
         }
 
+        // 查找命令是否存在
         /* Command lookup */
         cmd = lookupCommand(argv[0]->ptr);
         if (!cmd) {
@@ -853,6 +860,7 @@ int loadAppendOnlyFile(char *filename) {
         if (fakeClient->flags & CLIENT_MULTI &&
             fakeClient->cmd->proc != execCommand)
         {
+            // 批量执行事务
             queueMultiCommand(fakeClient);
         } else {
             cmd->proc(fakeClient);
@@ -1425,12 +1433,15 @@ int rewriteAppendOnlyFile(char *filename) {
     if (server.aof_rewrite_incremental_fsync)
         rioSetAutoSync(&aof,REDIS_AUTOSYNC_BYTES);
 
+    // 是否是混合持久化
     if (server.aof_use_rdb_preamble) {
         int error;
+        // 混合持久化, 写rdb
         if (rdbSaveRio(&aof,&error,RDB_SAVE_AOF_PREAMBLE,NULL) == C_ERR) {
             errno = error;
             goto werr;
         }
+    // 不是混合持久化, 写aof
     } else {
         if (rewriteAppendOnlyFileRio(&aof) == C_ERR) goto werr;
     }
