@@ -7167,6 +7167,7 @@ int main(int argc, char **argv) {
 
         /* Note that in repl mode we don't abort on connection error.
          * A new attempt will be performed for every command send. */
+        // 连接请求
         cliConnect(0);
         repl();
     }

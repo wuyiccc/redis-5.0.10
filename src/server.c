@@ -4250,6 +4250,7 @@ int main(int argc, char **argv) {
     #endif
         moduleLoadFromQueue();
         InitServerLast();
+        // 从磁盘中加载数据
         loadDataFromDisk();
         if (server.cluster_enabled) {
             if (verifyClusterConfigWithData() == C_ERR) {
