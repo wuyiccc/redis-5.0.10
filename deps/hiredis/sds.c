@@ -84,15 +84,19 @@ sds sdsnewlen(const void *init, size_t initlen) {
     char type = sdsReqType(initlen);
     /* Empty strings are usually created in order to append. Use type 8
      * since type 5 is not good at this. */
+    // 如果是5, 则强制转化为type8, 方便扩容
     if (type == SDS_TYPE_5 && initlen == 0) type = SDS_TYPE_8;
     int hdrlen = sdsHdrSize(type);
     unsigned char *fp; /* flags pointer. */
 
+    // 根据长度申请内存空间 头+体+结束符 \0
     sh = s_malloc(hdrlen+initlen+1);
     if (sh == NULL) return NULL;
     if (!init)
         memset(sh, 0, hdrlen+initlen+1);
+    // 把指针指向buf
     s = (char*)sh+hdrlen;
+    // 指向flags
     fp = ((unsigned char*)s)-1;
     switch(type) {
         case SDS_TYPE_5: {
@@ -130,7 +134,9 @@ sds sdsnewlen(const void *init, size_t initlen) {
     }
     if (initlen && init)
         memcpy(s, init, initlen);
+    // 结束符号
     s[initlen] = '\0';
+    // 返回sds.buf
     return s;
 }
 
