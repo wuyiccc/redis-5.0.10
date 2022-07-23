@@ -428,6 +428,7 @@ void trimStringObjectIfNeeded(robj *o) {
 }
 
 /* Try to encode a string object in order to save space */
+// 字符串转整型
 robj *tryObjectEncoding(robj *o) {
     long value;
     sds s = o->ptr;
@@ -465,10 +466,12 @@ robj *tryObjectEncoding(robj *o) {
         {
             decrRefCount(o);
             incrRefCount(shared.integers[value]);
+            // 返回共享数
             return shared.integers[value];
         } else {
             if (o->encoding == OBJ_ENCODING_RAW) {
                 sdsfree(o->ptr);
+                // 转化成整数
                 o->encoding = OBJ_ENCODING_INT;
                 o->ptr = (void*) value;
                 return o;

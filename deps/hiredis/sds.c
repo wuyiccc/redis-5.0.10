@@ -200,19 +200,24 @@ void sdsclear(sds s) {
  * by sdslen(), but only the free buffer space we have. */
 sds sdsMakeRoomFor(sds s, size_t addlen) {
     void *sh, *newsh;
+    // 计算剩余空间
     size_t avail = sdsavail(s);
     size_t len, newlen;
     char type, oldtype = s[-1] & SDS_TYPE_MASK;
     int hdrlen;
 
     /* Return ASAP if there is enough space left. */
+    // 剩余大于等于要增加 则返回
     if (avail >= addlen) return s;
-
+    // 获取当前串的长度
     len = sdslen(s);
     sh = (char*)s-sdsHdrSize(oldtype);
+    // 新的长度
     newlen = (len+addlen);
+    // 新的长度 < 1M, 空间预留多一倍
     if (newlen < SDS_MAX_PREALLOC)
         newlen *= 2;
+    // 新的长度 >= 1M, 空间预留多1M
     else
         newlen += SDS_MAX_PREALLOC;
 
@@ -225,18 +230,23 @@ sds sdsMakeRoomFor(sds s, size_t addlen) {
 
     hdrlen = sdsHdrSize(type);
     if (oldtype==type) {
+        // 扩展空间
         newsh = s_realloc(sh, hdrlen+newlen+1);
         if (newsh == NULL) return NULL;
         s = (char*)newsh+hdrlen;
     } else {
         /* Since the header size changes, need to move the string forward,
          * and can't use realloc */
+        // 新申请空间
         newsh = s_malloc(hdrlen+newlen+1);
         if (newsh == NULL) return NULL;
+        // 拷贝原数据到新位置
         memcpy((char*)newsh+hdrlen, s, len+1);
         s_free(sh);
+        // 指针指向新sds.buf
         s = (char*)newsh+hdrlen;
         s[-1] = type;
+        // 设置长度
         sdssetlen(s, len);
     }
     sdssetalloc(s, newlen);
