@@ -519,7 +519,9 @@ zskiplistNode* zslGetElementByRank(zskiplist *zsl, unsigned long rank) {
     int i;
 
     x = zsl->header;
+    // 从顶层开始循环
     for (i = zsl->level-1; i >= 0; i--) {
+        // 有下一个并且累计节点span+当前节点span <= rank
         while (x->level[i].forward && (traversed + x->level[i].span) <= rank)
         {
             traversed += x->level[i].span;
