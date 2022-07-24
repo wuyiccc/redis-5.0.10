@@ -484,20 +484,27 @@ unsigned long zslDeleteRangeByRank(zskiplist *zsl, unsigned int start, unsigned 
  * first element. */
 unsigned long zslGetRank(zskiplist *zsl, double score, sds ele) {
     zskiplistNode *x;
+    // 定义一个排位
     unsigned long rank = 0;
     int i;
-
+    // 从头结点开始
     x = zsl->header;
     for (i = zsl->level-1; i >= 0; i--) {
+        // 下一个节点存在, 并且下一个节点分值小于指定分值或者分值相同但ele小于给定(字典序)
         while (x->level[i].forward &&
             (x->level[i].forward->score < score ||
                 (x->level[i].forward->score == score &&
                 sdscmp(x->level[i].forward->ele,ele) <= 0))) {
+            // 累加当前节点的span
             rank += x->level[i].span;
+            // 到本层的下一个节点
             x = x->level[i].forward;
         }
 
         /* x might be equal to zsl->header, so test if obj is non-NULL */
+        // 1. 最后一个节点
+        // 2. 当前节点的值大于指定score
+        // 3. 当前节点的值==指定score, 但是ele大于等于指定ele
         if (x->ele && sdscmp(x->ele,ele) == 0) {
             return rank;
         }
