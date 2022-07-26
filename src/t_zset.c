@@ -217,19 +217,27 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
 /* Internal function used by zslDelete, zslDeleteByScore and zslDeleteByRank */
 void zslDeleteNode(zskiplist *zsl, zskiplistNode *x, zskiplistNode **update) {
     int i;
+    // 从底层开始循环更新update
     for (i = 0; i < zsl->level; i++) {
+        // 如果沿途节点的下一个是要删除的
         if (update[i]->level[i].forward == x) {
+            // span累加当前要删除的节点span-1
             update[i]->level[i].span += x->level[i].span - 1;
+            // 沿途节点的下一个是要删除节点的下一个节点
             update[i]->level[i].forward = x->level[i].forward;
         } else {
+            // update[i]第i层的forward
             update[i]->level[i].span -= 1;
         }
     }
+    // 删除x节点
     if (x->level[0].forward) {
         x->level[0].forward->backward = x->backward;
     } else {
         zsl->tail = x->backward;
     }
+
+    // zsl的高度减一
     while(zsl->level > 1 && zsl->header->level[zsl->level-1].forward == NULL)
         zsl->level--;
     zsl->length--;
@@ -243,27 +251,42 @@ void zslDeleteNode(zskiplist *zsl, zskiplistNode *x, zskiplistNode **update) {
  * it is not freed (but just unlinked) and *node is set to the node pointer,
  * so that it is possible for the caller to reuse the node (including the
  * referenced SDS string at node->ele). */
+/**
+ * 删除节点： 分值 ele
+ * @param zsl
+ * @param score
+ * @param ele
+ * @param node
+ * @return
+ */
 int zslDelete(zskiplist *zsl, double score, sds ele, zskiplistNode **node) {
+    // 记录沿途节点
     zskiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
     int i;
 
+    // 记录头结点
     x = zsl->header;
     for (i = zsl->level-1; i >= 0; i--) {
+        // 当前节点有下一个, 并且当前节点的下一个的分值小于或(等于指定分值但ele小于)
         while (x->level[i].forward &&
                 (x->level[i].forward->score < score ||
                     (x->level[i].forward->score == score &&
                      sdscmp(x->level[i].forward->ele,ele) < 0)))
         {
+            // 本层下一个
             x = x->level[i].forward;
         }
+        // 大于 记录沿途节点
         update[i] = x;
     }
     /* We may have multiple elements with the same score, what we need
      * is to find the element with both the right score and object. */
     x = x->level[0].forward;
+    // 分值相同 ele相同 进入删除
     if (x && score == x->score && sdscmp(x->ele,ele) == 0) {
         zslDeleteNode(zsl, x, update);
         if (!node)
+            // 释放节点的内存
             zslFreeNode(x);
         else
             *node = x;
