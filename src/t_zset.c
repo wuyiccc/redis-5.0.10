@@ -112,13 +112,18 @@ void zslFreeNode(zskiplistNode *node) {
 }
 
 /* Free a whole skiplist. */
+// 删除整个跳跃表
 void zslFree(zskiplist *zsl) {
+    // 底层头结点
     zskiplistNode *node = zsl->header->level[0].forward, *next;
-
+    // 释放头结点
     zfree(zsl->header);
     while(node) {
+        // next指向下一个
         next = node->level[0].forward;
+        // 释放当前节点
         zslFreeNode(node);
+        // 指向下一个
         node = next;
     }
     zfree(zsl);
