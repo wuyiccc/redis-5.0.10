@@ -134,9 +134,13 @@ void zslFree(zskiplist *zsl) {
  * (both inclusive), with a powerlaw-alike distribution where higher
  * levels are less likely to be returned. */
 int zslRandomLevel(void) {
+    // level赋初始值=1
     int level = 1;
+    // 循环判断(random()&0xFFFF) < (ZSKIPLIST_P * 0xFFFF)
+    // 则level++继续循环 有1/4的概率 0xFFFF -> 65535
     while ((random()&0xFFFF) < (ZSKIPLIST_P * 0xFFFF))
         level += 1;
+    // 退出循环后, 判断level<64, 则返回level, 否则返回64
     return (level<ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL;
 }
 
