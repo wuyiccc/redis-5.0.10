@@ -277,21 +277,27 @@
  * Note that this is not how the data is actually encoded, is just what we
  * get filled by a function in order to operate more easily. */
 typedef struct zlentry {
+    // 用来存prerawlen的字节数
     unsigned int prevrawlensize; /* Bytes used to encode the previous entry len*/
     unsigned int prevrawlen;     /* Previous entry len. */
+    // encoding的长度
     unsigned int lensize;        /* Bytes used to encode this entry type/len.
                                     For example strings have a 1, 2 or 5 bytes
                                     header. Integers always use a single byte.*/
+    // 节点的数据长度
     unsigned int len;            /* Bytes used to represent the actual entry.
                                     For strings this is just the string length
                                     while for integers it is 1, 2, 3, 4, 8 or
                                     0 (for 4 bit immediate) depending on the
                                     number range. */
+    // 首部长度
     unsigned int headersize;     /* prevrawlensize + lensize. */
+    // 编码
     unsigned char encoding;      /* Set to ZIP_STR_* or ZIP_INT_* depending on
                                     the entry encoding. However for 4 bits
                                     immediate integers this can assume a range
                                     of values and must be range-checked. */
+    // 当前元素的首地址
     unsigned char *p;            /* Pointer to the very start of the entry, that
                                     is, this points to prev-entry-len field. */
 } zlentry;
@@ -576,20 +582,29 @@ int64_t zipLoadInteger(unsigned char *p, unsigned char encoding) {
 /* Return a struct with all information about an entry. */
 void zipEntry(unsigned char *p, zlentry *e) {
 
+    // 解压previous_entry_length
     ZIP_DECODE_PREVLEN(p, e->prevrawlensize, e->prevrawlen);
+    // 解压encoding
     ZIP_DECODE_LENGTH(p + e->prevrawlensize, e->encoding, e->lensize, e->len);
+    // 赋值首部
     e->headersize = e->prevrawlensize + e->lensize;
+    // 元素首地址
     e->p = p;
 }
 
 /* Create a new empty ziplist. */
 unsigned char *ziplistNew(void) {
+    // 4(zlbytes 压缩列表的字节长度) + 4(ztail, 压缩列表尾相对于整个压缩列表起始地址的偏移量) + 2(zllen, 压缩列表的元素个数) + 1(结束符)
     unsigned int bytes = ZIPLIST_HEADER_SIZE+ZIPLIST_END_SIZE;
+    // 申请内存
     unsigned char *zl = zmalloc(bytes);
+    // 赋初值, 小端字节序
     ZIPLIST_BYTES(zl) = intrev32ifbe(bytes);
     ZIPLIST_TAIL_OFFSET(zl) = intrev32ifbe(ZIPLIST_HEADER_SIZE);
     ZIPLIST_LENGTH(zl) = 0;
+    // 结束 255
     zl[bytes-1] = ZIP_END;
+    // 返回首地址
     return zl;
 }
 
