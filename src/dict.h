@@ -45,38 +45,58 @@
 #define DICT_NOTUSED(V) ((void) V)
 
 typedef struct dictEntry {
+    /* 存储任意类型的键 */
     void *key;
+    /* 联合体 */
     union {
+        /* 存储任意类型的值 */
         void *val;
+        /* 直接存数 */
         uint64_t u64;
+        /* 过期时间 */
         int64_t s64;
         double d;
     } v;
+    // next指向冲突元素
     struct dictEntry *next;
 } dictEntry;
 
 typedef struct dictType {
+    /* 字典对应的hash函数 */
     uint64_t (*hashFunction)(const void *key);
+    /* 键复制 */
     void *(*keyDup)(void *privdata, const void *key);
+    /* 值复制 */
     void *(*valDup)(void *privdata, const void *obj);
+    /* 键比较 */
     int (*keyCompare)(void *privdata, const void *key1, const void *key2);
+    /* 键析构 销毁 */
     void (*keyDestructor)(void *privdata, void *key);
+    /* 值析构 销毁 */
     void (*valDestructor)(void *privdata, void *obj);
 } dictType;
 
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table. */
 typedef struct dictht {
+    /* 指针数组, 存储节点 */
     dictEntry **table;
+    /* 数组大小, 初始4, 扩容8, 16, 32 倍数扩容 */
     unsigned long size;
+    /* 掩码 =size-1 计算 */
     unsigned long sizemask;
+    /* 已存储的个数 */
     unsigned long used;
 } dictht;
 
 typedef struct dict {
+    /* 字典类别指针 指向dictType */
     dictType *type;
+    /* dictType的函数参数 */
     void *privdata;
+    /* 两个hash表 */
     dictht ht[2];
+    /* rehash标识: -1没有rehash, 其他: 正在rehash到的数组下标 */
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
     unsigned long iterators; /* number of iterators currently running */
 } dict;
