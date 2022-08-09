@@ -106,11 +106,17 @@ typedef struct dict {
  * iterating. Otherwise it is a non safe iterator, and only dictNext()
  * should be called while iterating. */
 typedef struct dictIterator {
+    // 要迭代的字典
     dict *d;
+    // 当前索引
     long index;
+    // table 迭代的hash表, ht[0], ht[1]
+    // safe表示当前创建的是否是安全迭代器
     int table, safe;
+    // 当前节点  下一个节点
     dictEntry *entry, *nextEntry;
     /* unsafe iterator fingerprint for misuse detection. */
+    // 字典的指纹, 当字典未发生改变时, 该值不变
     long long fingerprint;
 } dictIterator;
 

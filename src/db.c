@@ -187,14 +187,17 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
  *
  * The program is aborted if the key was not already present. */
 void dbOverwrite(redisDb *db, robj *key, robj *val) {
+    // 根据key查找元素
     dictEntry *de = dictFind(db->dict,key->ptr);
 
+    // 没找到中断执行
     serverAssertWithInfo(NULL,key,de != NULL);
     dictEntry auxentry = *de;
     robj *old = dictGetVal(de);
     if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
         val->lru = old->lru;
     }
+    // 设置新值
     dictSetVal(db->dict, de, val);
 
     if (server.lazyfree_lazy_server_del) {
@@ -202,6 +205,7 @@ void dbOverwrite(redisDb *db, robj *key, robj *val) {
         dictSetVal(db->dict, &auxentry, NULL);
     }
 
+    // 释放内存
     dictFreeVal(db->dict, &auxentry);
 }
 
@@ -215,8 +219,10 @@ void dbOverwrite(redisDb *db, robj *key, robj *val) {
  * All the new keys in the database should be created via this interface. */
 void setKey(redisDb *db, robj *key, robj *val) {
     if (lookupKeyWrite(db,key) == NULL) {
+        // 没找到则新增
         dbAdd(db,key,val);
     } else {
+        // 找到则覆盖
         dbOverwrite(db,key,val);
     }
     incrRefCount(val);

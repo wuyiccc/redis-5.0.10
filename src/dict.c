@@ -111,6 +111,7 @@ static void _dictReset(dictht *ht)
 dict *dictCreate(dictType *type,
         void *privDataPtr)
 {
+    // 申请96字节
     dict *d = zmalloc(sizeof(*d));
 
     _dictInit(d,type,privDataPtr);
@@ -125,6 +126,7 @@ int _dictInit(dict *d, dictType *type,
     _dictReset(&d->ht[1]);
     d->type = type;
     d->privdata = privDataPtr;
+    // 没有rehash
     d->rehashidx = -1;
     d->iterators = 0;
     return DICT_OK;
@@ -140,6 +142,7 @@ int dictResize(dict *d)
     minimal = d->ht[0].used;
     if (minimal < DICT_HT_INITIAL_SIZE)
         minimal = DICT_HT_INITIAL_SIZE;
+    // 缩容
     return dictExpand(d, minimal);
 }
 
@@ -152,6 +155,7 @@ int dictExpand(dict *d, unsigned long size)
         return DICT_ERR;
 
     dictht n; /* the new hash table */
+    // 重新计算扩容之后的值, 必须是2的n次幂
     unsigned long realsize = _dictNextPower(size);
 
     /* Rehashing to the same table size is not useful. */
@@ -171,7 +175,9 @@ int dictExpand(dict *d, unsigned long size)
     }
 
     /* Prepare a second hash table for incremental rehashing */
+    // 扩容后新的内存放入ht[1]中
     d->ht[1] = n;
+    // 不是-1, 表示需进行rehash
     d->rehashidx = 0;
     return DICT_OK;
 }
@@ -199,21 +205,27 @@ int dictRehash(dict *d, int n) {
             d->rehashidx++;
             if (--empty_visits == 0) return 1;
         }
+        // 将要rehash的节点赋值
         de = d->ht[0].table[d->rehashidx];
         /* Move all the keys in this bucket from the old to the new hash HT */
+        // 新旧值对调
         while(de) {
             uint64_t h;
 
             nextde = de->next;
             /* Get the index in the new hash table */
+            // 计算新的索引值
             h = dictHashKey(d, de->key) & d->ht[1].sizemask;
+            // 把新的赋值给de.next
             de->next = d->ht[1].table[h];
             d->ht[1].table[h] = de;
             d->ht[0].used--;
             d->ht[1].used++;
             de = nextde;
         }
+        // 删除旧的
         d->ht[0].table[d->rehashidx] = NULL;
+        // rehash下一个
         d->rehashidx++;
     }
 
@@ -258,6 +270,7 @@ int dictRehashMilliseconds(dict *d, int ms) {
  * dictionary so that the hash table automatically migrates from H1 to H2
  * while it is actively used. */
 static void _dictRehashStep(dict *d) {
+    // 判断字典的安全迭代器数是0, 才进行rehash
     if (d->iterators == 0) dictRehash(d,1);
 }
 
@@ -308,6 +321,7 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
      * more frequently. */
     ht = dictIsRehashing(d) ? &d->ht[1] : &d->ht[0];
     entry = zmalloc(sizeof(*entry));
+    // 头插法形成单链表
     entry->next = ht->table[index];
     ht->table[index] = entry;
     ht->used++;
@@ -379,8 +393,10 @@ static dictEntry *dictGenericDelete(dict *d, const void *key, int nofree) {
             if (key==he->key || dictCompareKeys(d, key, he->key)) {
                 /* Unlink the element from the list */
                 if (prevHe)
+                    // 临时变量赋值
                     prevHe->next = he->next;
                 else
+                    // 赋值下标数
                     d->ht[table].table[idx] = he->next;
                 if (!nofree) {
                     dictFreeKey(d, he);
@@ -480,15 +496,20 @@ dictEntry *dictFind(dict *d, const void *key)
 
     if (d->ht[0].used + d->ht[1].used == 0) return NULL; /* dict is empty */
     if (dictIsRehashing(d)) _dictRehashStep(d);
+    // 根据key计算hash值
     h = dictHashKey(d, key);
+    // ht[0], ht[1]
     for (table = 0; table <= 1; table++) {
         idx = h & d->ht[table].sizemask;
+        // 取出下标处元素
         he = d->ht[table].table[idx];
         while(he) {
+            // key匹配
             if (key==he->key || dictCompareKeys(d, key, he->key))
                 return he;
             he = he->next;
         }
+        // 如果没有rehash, 那么返回null
         if (!dictIsRehashing(d)) return NULL;
     }
     return NULL;
@@ -546,6 +567,7 @@ dictIterator *dictGetIterator(dict *d)
     iter->d = d;
     iter->table = 0;
     iter->index = -1;
+    // 普通迭代器
     iter->safe = 0;
     iter->entry = NULL;
     iter->nextEntry = NULL;
@@ -554,7 +576,7 @@ dictIterator *dictGetIterator(dict *d)
 
 dictIterator *dictGetSafeIterator(dict *d) {
     dictIterator *i = dictGetIterator(d);
-
+    // 安全迭代器
     i->safe = 1;
     return i;
 }
@@ -562,15 +584,23 @@ dictIterator *dictGetSafeIterator(dict *d) {
 dictEntry *dictNext(dictIterator *iter)
 {
     while (1) {
+        // 首次取, 单链表取完
         if (iter->entry == NULL) {
+            // ht[0]
             dictht *ht = &iter->d->ht[iter->table];
             if (iter->index == -1 && iter->table == 0) {
+                // 安全迭代器
                 if (iter->safe)
+                    // 当前字典的安全迭代器数+1
                     iter->d->iterators++;
+                // 普通迭代器
                 else
+                    // 计算字典指纹值并存储
                     iter->fingerprint = dictFingerprint(iter->d);
             }
+            // 指针指向下一个
             iter->index++;
+            // 遍历完成
             if (iter->index >= (long) ht->size) {
                 if (dictIsRehashing(iter->d) && iter->table == 0) {
                     iter->table++;
@@ -580,26 +610,37 @@ dictEntry *dictNext(dictIterator *iter)
                     break;
                 }
             }
+            // 存储当前节点
             iter->entry = ht->table[iter->index];
         } else {
+            // 指向单链表下一个节点
             iter->entry = iter->nextEntry;
         }
         if (iter->entry) {
             /* We need to save the 'next' here, the iterator user
              * may delete the entry we are returning. */
+            // 保存单链表下一个节点, 防止当前节点被删除
             iter->nextEntry = iter->entry->next;
             return iter->entry;
         }
     }
     return NULL;
 }
-
+/**
+ * 释放迭代器
+ * @param iter
+ */
 void dictReleaseIterator(dictIterator *iter)
 {
+    // 完成迭代
     if (!(iter->index == -1 && iter->table == 0)) {
+        // 安全迭代器
         if (iter->safe)
+            // 安全迭代器-1
             iter->d->iterators--;
+        // 普通迭代器
         else
+            // 比对指纹值
             assert(iter->fingerprint == dictFingerprint(iter->d));
     }
     zfree(iter);
