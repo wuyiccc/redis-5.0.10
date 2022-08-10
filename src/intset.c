@@ -152,6 +152,7 @@ static uint8_t intsetSearch(intset *is, int64_t value, uint32_t *pos) {
         if (pos) *pos = mid;
         return 1;
     } else {
+        // pos是要插入的位置
         if (pos) *pos = min;
         return 0;
     }
@@ -206,6 +207,7 @@ static void intsetMoveTail(intset *is, uint32_t from, uint32_t to) {
 
 /* Insert an integer in the intset */
 intset *intsetAdd(intset *is, int64_t value, uint8_t *success) {
+    // 获取值的encoding
     uint8_t valenc = _intsetValueEncoding(value);
     uint32_t pos;
     if (success) *success = 1;
@@ -213,22 +215,31 @@ intset *intsetAdd(intset *is, int64_t value, uint8_t *success) {
     /* Upgrade encoding if necessary. If we need to upgrade, we know that
      * this value should be either appended (if > 0) or prepended (if < 0),
      * because it lies outside the range of existing values. */
+    // 如果值的encoding > intset的encoding
     if (valenc > intrev32ifbe(is->encoding)) {
         /* This always succeeds, so we don't need to curry *success. */
+        // 编码升级
         return intsetUpgradeAndAdd(is,value);
     } else {
         /* Abort if the value is already present in the set.
          * This call will populate "pos" with the right position to insert
          * the value when it cannot be found. */
+        // 查找元素, 传入pos, 并返回
         if (intsetSearch(is,value,&pos)) {
+            // 已经有了, 不能添加, 集合不能重复
             if (success) *success = 0;
             return is;
         }
 
+        // 扩展intset
         is = intsetResize(is,intrev32ifbe(is->length)+1);
+        // 挪动元素
+        // from: 源数据
+        // to: 目标数据
         if (pos < intrev32ifbe(is->length)) intsetMoveTail(is,pos,pos+1);
     }
 
+    // 把value写入pos位
     _intsetSet(is,pos,value);
     is->length = intrev32ifbe(intrev32ifbe(is->length)+1);
     return is;
