@@ -161,12 +161,14 @@ static uint8_t intsetSearch(intset *is, int64_t value, uint32_t *pos) {
 /* Upgrades the intset to a larger encoding and inserts the given integer. */
 static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
     uint8_t curenc = intrev32ifbe(is->encoding);
+    // 新值的编码
     uint8_t newenc = _intsetValueEncoding(value);
     int length = intrev32ifbe(is->length);
     int prepend = value < 0 ? 1 : 0;
 
     /* First set new encoding and resize */
     is->encoding = intrev32ifbe(newenc);
+    // 扩展
     is = intsetResize(is,intrev32ifbe(is->length)+1);
 
     /* Upgrade back-to-front so we don't overwrite values.
@@ -176,6 +178,7 @@ static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
         _intsetSet(is,length+prepend,_intsetGetEncoded(is,length,curenc));
 
     /* Set the value at the beginning or the end. */
+    // 判断是插入头部还是尾部(扩容之后代码新插入的值一定在两边)
     if (prepend)
         _intsetSet(is,0,value);
     else
@@ -251,6 +254,7 @@ intset *intsetRemove(intset *is, int64_t value, int *success) {
     uint32_t pos;
     if (success) *success = 0;
 
+    // 如果值的encoding <= intset的encoding, 并且能找到则删除
     if (valenc <= intrev32ifbe(is->encoding) && intsetSearch(is,value,&pos)) {
         uint32_t len = intrev32ifbe(is->length);
 
