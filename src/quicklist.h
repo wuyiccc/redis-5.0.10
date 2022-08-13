@@ -60,7 +60,9 @@ typedef struct quicklistNode {
  * NOTE: uncompressed length is stored in quicklistNode->sz.
  * When quicklistNode->zl is compressed, node->zl points to a quicklistLZF */
 typedef struct quicklistLZF {
+    // ziplist压缩之后的大小
     unsigned int sz; /* LZF size in bytes*/
+    // 柔性数组
     char compressed[];
 } quicklistLZF;
 
@@ -71,8 +73,11 @@ typedef struct quicklistLZF {
  *                of quicklistNodes to leave uncompressed at ends of quicklist.
  * 'fill' is the user-requested (or default) fill factor. */
 typedef struct quicklist {
+    // 指向头结点
     quicklistNode *head;
+    // 指向尾结点
     quicklistNode *tail;
+    // 所有的ziplist的entry总和
     unsigned long count;        /* total count of all entries in all ziplists */
     unsigned long len;          /* number of quicklistNodes */
     int fill : 16;              /* fill factor for individual nodes */

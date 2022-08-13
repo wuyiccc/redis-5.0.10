@@ -95,6 +95,14 @@
  *
  */
 
+/**
+ * 数据压缩
+ * @param in_data 输入数据
+ * @param in_len 输入数据长度
+ * @param out_data 输出数据
+ * @param out_len 数据数据长度
+ * @return
+ */
 unsigned int
 lzf_compress (const void *const in_data, unsigned int in_len,
 	      void *out_data, unsigned int out_len
@@ -104,10 +112,11 @@ lzf_compress (const void *const in_data, unsigned int in_len,
               )
 {
 #if !LZF_STATE_ARG
+    // htab用于散列运算, 进而获取上次重复点的位置
   LZF_STATE htab;
 #endif
-  const u8 *ip = (const u8 *)in_data;
-        u8 *op = (u8 *)out_data;
+  const u8 *ip = (const u8 *)in_data; // 输入数据当前处理位置指针
+        u8 *op = (u8 *)out_data; // 数据数据层当前处理位置指针
   const u8 *in_end  = ip + in_len;
         u8 *out_end = op + out_len;
   const u8 *ref;
@@ -141,6 +150,7 @@ lzf_compress (const void *const in_data, unsigned int in_len,
     {
       LZF_HSLOT *hslot;
 
+        // 计算该该元素及其后面两个元素的hash值, 计算在hash表中的位置
       hval = NEXT (hval, ip);
       hslot = htab + IDX (hval);
       ref = *hslot + LZF_HSLOT_BIAS; *hslot = ip - LZF_HSLOT_BIAS;
