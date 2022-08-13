@@ -1282,6 +1282,7 @@ int quicklistIndex(const quicklist *quicklist, const long long idx,
     entry->quicklist = quicklist;
 
     if (!forward) {
+        // 索引取正值
         index = (-idx) - 1;
         n = quicklist->tail;
     } else {
@@ -1299,6 +1300,7 @@ int quicklistIndex(const quicklist *quicklist, const long long idx,
             D("Skipping over (%p) %u at accum %lld", (void *)n, n->count,
               accum);
             accum += n->count;
+            // head : tail
             n = forward ? n->next : n->prev;
         }
     }
@@ -1310,6 +1312,7 @@ int quicklistIndex(const quicklist *quicklist, const long long idx,
       accum, index, index - accum, (-index) - 1 + accum);
 
     entry->node = n;
+    // 计算偏移量
     if (forward) {
         /* forward = normal head-to-tail offset. */
         entry->offset = index - accum;
@@ -1319,8 +1322,11 @@ int quicklistIndex(const quicklist *quicklist, const long long idx,
         entry->offset = (-index) - 1 + accum;
     }
 
+    // 解压
     quicklistDecompressNodeForUse(entry->node);
+    // 获取entry的zi
     entry->zi = ziplistIndex(entry->node->zl, entry->offset);
+    // 装载数据
     ziplistGet(entry->zi, &entry->value, &entry->sz, &entry->longval);
     /* The caller will use our result, so we don't re-compress here.
      * The caller can recompress or delete the node as needed. */
