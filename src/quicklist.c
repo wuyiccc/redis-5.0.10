@@ -1007,8 +1007,9 @@ int quicklistDelRange(quicklist *quicklist, const long start,
     if (count <= 0)
         return 0;
 
+    // 剩余删除个数
     unsigned long extent = count; /* range is inclusive of start position */
-
+    //
     if (start >= 0 && extent > (quicklist->count - start)) {
         /* if requesting delete more elements than exist, limit to list size. */
         extent = quicklist->count - start;
@@ -1034,6 +1035,7 @@ int quicklistDelRange(quicklist *quicklist, const long start,
         if (entry.offset == 0 && extent >= node->count) {
             /* If we are deleting more than the count of this node, we
              * can just delete the entire node without ziplist math. */
+            // 标志删除node
             delete_entire_node = 1;
             del = node->count;
         } else if (entry.offset >= 0 && extent >= node->count) {
@@ -1375,6 +1377,7 @@ int quicklistPopCustom(quicklist *quicklist, int where, unsigned char **data,
     unsigned char *vstr;
     unsigned int vlen;
     long long vlong;
+    // 如果是从头弹则pos=0, 否则pos=1
     int pos = (where == QUICKLIST_HEAD) ? 0 : -1;
 
     if (quicklist->count == 0)
@@ -1429,6 +1432,14 @@ REDIS_STATIC void *_quicklistSaver(unsigned char *data, unsigned int sz) {
 /* Default pop function
  *
  * Returns malloc'd value from quicklist */
+/**
+ * @param quicklist 要取得的元素
+ * @param where 从头弹或从尾弹
+ * @param data 字符串数据
+ * @param sz 字符串长度
+ * @param slong 整型数据
+ * @return
+ */
 int quicklistPop(quicklist *quicklist, int where, unsigned char **data,
                  unsigned int *sz, long long *slong) {
     unsigned char *vstr;
