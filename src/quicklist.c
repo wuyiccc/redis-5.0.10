@@ -714,11 +714,14 @@ void quicklistDelEntry(quicklistIter *iter, quicklistEntry *entry) {
 int quicklistReplaceAtIndex(quicklist *quicklist, long index, void *data,
                             int sz) {
     quicklistEntry entry;
+    // 找到元素
     if (likely(quicklistIndex(quicklist, index, &entry))) {
         /* quicklistIndex provides an uncompressed node */
         entry.node->zl = ziplistDelete(entry.node->zl, &entry.zi);
         entry.node->zl = ziplistInsert(entry.node->zl, entry.zi, data, sz);
+        // 更新大小
         quicklistNodeUpdateSz(entry.node);
+        // 压缩
         quicklistCompress(quicklist, entry.node);
         return 1;
     } else {
