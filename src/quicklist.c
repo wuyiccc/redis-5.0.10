@@ -1100,8 +1100,10 @@ int quicklistCompare(unsigned char *p1, unsigned char *p2, int p2_len) {
 quicklistIter *quicklistGetIterator(const quicklist *quicklist, int direction) {
     quicklistIter *iter;
 
+    // 申请迭代器内存
     iter = zmalloc(sizeof(*iter));
 
+    // 从头开始迭代
     if (direction == AL_START_HEAD) {
         iter->current = quicklist->head;
         iter->offset = 0;
@@ -1167,6 +1169,7 @@ void quicklistReleaseIterator(quicklistIter *iter) {
  * If return value is 0, the contents of 'entry' are not valid.
  */
 int quicklistNext(quicklistIter *iter, quicklistEntry *entry) {
+    // 初始化节点
     initEntry(entry);
 
     if (!iter) {
@@ -1185,16 +1188,21 @@ int quicklistNext(quicklistIter *iter, quicklistEntry *entry) {
     unsigned char *(*nextFn)(unsigned char *, unsigned char *) = NULL;
     int offset_update = 0;
 
+    // 第一次迭代
     if (!iter->zi) {
         /* If !zi, use current index. */
+        //当前节点解压缩
         quicklistDecompressNodeForUse(iter->current);
         iter->zi = ziplistIndex(iter->current->zl, iter->offset);
+    // 已经发生迭代
     } else {
         /* else, use existing iterator offset and get prev/next as necessary. */
         if (iter->direction == AL_START_HEAD) {
+            // 向后遍历
             nextFn = ziplistNext;
             offset_update = 1;
         } else if (iter->direction == AL_START_TAIL) {
+            // 向前遍历
             nextFn = ziplistPrev;
             offset_update = -1;
         }
@@ -1212,15 +1220,18 @@ int quicklistNext(quicklistIter *iter, quicklistEntry *entry) {
     } else {
         /* We ran out of ziplist entries.
          * Pick next node, update offset, then re-run retrieval. */
+        // 压缩当前
         quicklistCompress(iter->quicklist, iter->current);
         if (iter->direction == AL_START_HEAD) {
             /* Forward traversal */
             D("Jumping to start of next node");
+            // 指向下一个节点
             iter->current = iter->current->next;
             iter->offset = 0;
         } else if (iter->direction == AL_START_TAIL) {
             /* Reverse traversal */
             D("Jumping to end of previous node");
+            // 指向上一个节点
             iter->current = iter->current->prev;
             iter->offset = -1;
         }
