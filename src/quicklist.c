@@ -615,7 +615,7 @@ quicklist *quicklistCreateFromZiplist(int fill, int compress,
             (n) = NULL;                                                        \
         }                                                                      \
     } while (0)
-
+// 删除链表上的node
 REDIS_STATIC void __quicklistDelNode(quicklist *quicklist,
                                      quicklistNode *node) {
     if (node->next)
@@ -650,14 +650,18 @@ REDIS_STATIC void __quicklistDelNode(quicklist *quicklist,
  *
  * Returns 1 if the entire node was deleted, 0 if node still exists.
  * Also updates in/out param 'p' with the next offset in the ziplist. */
+// 删除指定位置的元素
 REDIS_STATIC int quicklistDelIndex(quicklist *quicklist, quicklistNode *node,
                                    unsigned char **p) {
     int gone = 0;
-
+    // 调用ziplist的删除接口
     node->zl = ziplistDelete(node->zl, p);
+    // node的总元素数减一
     node->count--;
+    // node元素为0
     if (node->count == 0) {
         gone = 1;
+        // 删除node
         __quicklistDelNode(quicklist, node);
     } else {
         quicklistNodeUpdateSz(node);
@@ -672,8 +676,10 @@ REDIS_STATIC int quicklistDelIndex(quicklist *quicklist, quicklistNode *node,
  * 'entry' stores enough metadata to delete the proper position in
  * the correct ziplist in the correct quicklist node. */
 void quicklistDelEntry(quicklistIter *iter, quicklistEntry *entry) {
+    // 当前元素的node的上一个和下一个
     quicklistNode *prev = entry->node->prev;
     quicklistNode *next = entry->node->next;
+    // 指定位置删除
     int deleted_node = quicklistDelIndex((quicklist *)entry->quicklist,
                                          entry->node, &entry->zi);
 
@@ -681,6 +687,7 @@ void quicklistDelEntry(quicklistIter *iter, quicklistEntry *entry) {
     iter->zi = NULL;
 
     /* If current node is deleted, we must update iterator node and offset. */
+    // 如果当前node被删除
     if (deleted_node) {
         if (iter->direction == AL_START_HEAD) {
             iter->current = next;
