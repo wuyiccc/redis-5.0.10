@@ -401,6 +401,7 @@ unsigned char *lpSkip(unsigned char *p) {
 /* If 'p' points to an element of the listpack, calling lpNext() will return
  * the pointer to the next element (the one on the right), or NULL if 'p'
  * already pointed to the last element of the listpack. */
+// 获得p的下一个元素的首地址
 unsigned char *lpNext(unsigned char *lp, unsigned char *p) {
     ((void) lp); /* lp is not used for now. However lpPrev() uses it. */
     p = lpSkip(p);
@@ -412,25 +413,33 @@ unsigned char *lpNext(unsigned char *lp, unsigned char *p) {
  * the pointer to the preivous element (the one on the left), or NULL if 'p'
  * already pointed to the first element of the listpack. */
 unsigned char *lpPrev(unsigned char *lp, unsigned char *p) {
+    // - 左移
     if (p-lp == LP_HDR_SIZE) return NULL;
     p--; /* Seek the first backlen byte of the last element. */
+    // 获得元素的len
     uint64_t prevlen = lpDecodeBacklen(p);
+    // len = backlen + len
     prevlen += lpEncodeBacklen(NULL,prevlen);
+    // 获得p的上一个元素的首地址
     return p-prevlen+1; /* Seek the first byte of the previous entry. */
 }
 
 /* Return a pointer to the first element of the listpack, or NULL if the
  * listpack has no elements. */
 unsigned char *lpFirst(unsigned char *lp) {
+    // totalbytes 4 + num elem 2
     lp += LP_HDR_SIZE; /* Skip the header. */
     if (lp[0] == LP_EOF) return NULL;
+    // 返回跳过了头的首地址
     return lp;
 }
 
 /* Return a pointer to the last element of the listpack, or NULL if the
  * listpack has no elements. */
 unsigned char *lpLast(unsigned char *lp) {
+    // eof前一个位置
     unsigned char *p = lp+lpGetTotalBytes(lp)-1; /* Seek EOF element. */
+    // p的上一个元素, 就是最后一个元素的地址
     return lpPrev(lp,p); /* Will return NULL if EOF is the only element. */
 }
 
@@ -799,17 +808,22 @@ unsigned char *lpSeek(unsigned char *lp, long index) {
      * depending on the listpack length and the element position.
      * However if the listpack length cannot be obtained in constant time,
      * we always seek from left to right. */
+    // 获取元素数
     uint32_t numele = lpGetNumElements(lp);
     if (numele != LP_HDR_NUMELE_UNKNOWN) {
+        // 如果索引小于0, 则计算找到正序索引
         if (index < 0) index = (long)numele+index;
         if (index < 0) return NULL; /* Index still < 0 means out of range. */
         if (index >= numele) return NULL; /* Out of range the other side. */
         /* We want to scan right-to-left if the element we are looking for
          * is past the half of the listpack. */
+        // 索引大于元素数一半
         if (index > numele/2) {
+            // 逆序遍历
             forward = 0;
             /* Left to right scanning always expects a negative index. Convert
              * our index to negative form. */
+            // 计算逆序索引
             index -= numele;
         }
     } else {
@@ -819,13 +833,18 @@ unsigned char *lpSeek(unsigned char *lp, long index) {
     }
 
     /* Forward and backward scanning is trivially based on lpNext()/lpPrev(). */
+    // 正序遍历
     if (forward) {
+        // 获得第一个元素的首地址
         unsigned char *ele = lpFirst(lp);
         while (index > 0 && ele) {
             ele = lpNext(lp,ele);
+            // 索引数-1,
             index--;
         }
+        // 返回元素
         return ele;
+    // 逆序遍历
     } else {
         unsigned char *ele = lpLast(lp);
         while (index < -1 && ele) {
