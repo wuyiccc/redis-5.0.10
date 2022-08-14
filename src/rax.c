@@ -199,10 +199,14 @@ raxNode *raxNewNode(size_t children, int datafield) {
 /* Allocate a new rax and return its pointer. On out of memory the function
  * returns NULL. */
 rax *raxNew(void) {
+    // 申请空间
     rax *rax = rax_malloc(sizeof(*rax));
     if (rax == NULL) return NULL;
+    // 当前元素个数为0
     rax->numele = 0;
+    // 当前节点个数为1
     rax->numnodes = 1;
+    // 构造头节点
     rax->head = raxNewNode(0,0);
     if (rax->head == NULL) {
         rax_free(rax);
@@ -454,12 +458,26 @@ raxNode *raxCompressNode(raxNode *n, unsigned char *s, size_t len, raxNode **chi
  * means that the current node represents the key (that is, none of the
  * compressed node characters are needed to represent the key, just all
  * its parents nodes). */
+/**
+ * rax 为待查找的rax
+ * s 为待查找的key
+ * len为s的长度
+ * *stopnode为查找过程中的终止节点
+ * *plink用于记录父节点中指向*stopnode的指针的位置
+ * *splitpos 用于记录压缩节点的匹配位置
+ * *ts 当ts不为空时, 会将查找该key的路径写入该变量
+ * 函数返回s的匹配长度
+ */
 static inline size_t raxLowWalk(rax *rax, unsigned char *s, size_t len, raxNode **stopnode, raxNode ***plink, int *splitpos, raxStack *ts) {
+    // 从根节点开始匹配
     raxNode *h = rax->head;
     raxNode **parentlink = &rax->head;
 
+    // 当前待匹配的字符的位置
     size_t i = 0; /* Position in the string. */
+    // 当前待匹配的节点的位置
     size_t j = 0; /* Position in the node children (or bytes if compressed).*/
+    // 当前节点有子节点, 且尚未走到s字符串的末尾
     while(h->size && i < len) {
         debugnode("Lookup current node",h);
         unsigned char *v = h->data;
@@ -473,16 +491,21 @@ static inline size_t raxLowWalk(rax *rax, unsigned char *s, size_t len, raxNode 
             /* Even when h->size is large, linear scan provides good
              * performances compared to other approaches that are in theory
              * more sounding, like performing a binary search. */
+            // 非压缩节点遍历节点元素, 查找与当前字符串匹配的位置
             for (j = 0; j < h->size; j++) {
                 if (v[j] == s[i]) break;
             }
+            // 未在非压缩节点找到匹配的字符
             if (j == h->size) break;
+            // 非压缩节点可以匹配, 移动到s的下一个字符
             i++;
         }
 
+        // 当前节点可以匹配
         if (ts) raxStackPush(ts,h); /* Save stack of parent nodes. */
         raxNode **children = raxNodeFirstChildPtr(h);
         if (h->iscompr) j = 0; /* Compressed node only child is at index 0. */
+        // 将当前节点移动到其第j个节点
         memcpy(&h,children+j,sizeof(h));
         parentlink = children+j;
         j = 0; /* If the new node is compressed and we do not
@@ -913,6 +936,7 @@ int raxTryInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old)
 /* Find a key in the rax, returns raxNotFound special void pointer value
  * if the item was not found, otherwise the value associated with the
  * item is returned. */
+// 在rax中查找长度为len的字符串s(s为rax中的一个key), 找到返回该key对应的value
 void *raxFind(rax *rax, unsigned char *s, size_t len) {
     raxNode *h;
 
@@ -920,7 +944,9 @@ void *raxFind(rax *rax, unsigned char *s, size_t len) {
     int splitpos = 0;
     size_t i = raxLowWalk(rax,s,len,&h,NULL,&splitpos,NULL);
     if (i != len || (h->iscompr && splitpos != 0) || !h->iskey)
+        // 没有找到这个key
         return raxNotFound;
+    // 查找到key,
     return raxGetData(h);
 }
 
