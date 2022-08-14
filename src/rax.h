@@ -95,6 +95,7 @@
  */
 
 #define RAX_NODE_MAX_SIZE ((1<<29)-1)
+// 基数树节点
 typedef struct raxNode {
     uint32_t iskey:1;     /* Does this node contain a key? */
     uint32_t isnull:1;    /* Associated value is NULL (don't store it). */
@@ -141,11 +142,15 @@ typedef struct rax {
  * field for space concerns, so we use the auxiliary stack when needed. */
 #define RAX_STACK_STATIC_ITEMS 32
 typedef struct raxStack {
+    // 记录路径
     void **stack; /* Points to static_items or an heap allocated array. */
+    // stack指向的空间的已用空间以及最大空间
     size_t items, maxitems; /* Number of items contained and total space. */
     /* Up to RAXSTACK_STACK_ITEMS items we avoid to allocate on the heap
      * and use this static array of pointers instead. */
+    // 数组指针, 指向存储的路径
     void *static_items[RAX_STACK_STATIC_ITEMS];
+    // 是否有栈移除
     int oom; /* True if pushing into this stack failed for OOM at some point. */
 } raxStack;
 
@@ -166,22 +171,33 @@ typedef int (*raxNodeCallback)(raxNode **noderef);
 
 /* Radix tree iterator state is encapsulated into this data structure. */
 #define RAX_ITER_STATIC_LEN 128
+// 刚搜过的 可直接返回元素 并清空标识 1
 #define RAX_ITER_JUST_SEEKED (1<<0) /* Iterator was just seeked. Return current
                                        element for the first iteration and
                                        clear the flag. */
+// rax的最后一个节点
 #define RAX_ITER_EOF (1<<1)    /* End of iteration reached. */
+// 安全迭代器 允许操作修改
 #define RAX_ITER_SAFE (1<<2)   /* Safe iterator, allows operations while
                                   iterating. But it is slower. */
 typedef struct raxIterator {
+    // 迭代器标志位 3种
     int flags;
+    // 当前迭代器对应的rax
     rax *rt;                /* Radix tree we are iterating. */
+    // 当前迭代遍历到的key
     unsigned char *key;     /* The current string. */
+    // 当前key关联的value
     void *data;             /* Data associated to this key. */
     size_t key_len;         /* Current key length. */
     size_t key_max;         /* Max key len the current key buffer can hold. */
+    // key的默认存储空间
     unsigned char key_static_string[RAX_ITER_STATIC_LEN];
+    // 当前key所在的raxNode
     raxNode *node;          /* Current node. Only for unsafe iteration. */
+    // 从根节点到当前节点的路径
     raxStack stack;         /* Stack used for unsafe iteration. */
+    // 节点的回调函数
     raxNodeCallback node_cb; /* Optional node callback. Normally set to NULL. */
 } raxIterator;
 
