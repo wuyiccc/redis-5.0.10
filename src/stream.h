@@ -8,15 +8,24 @@
  * a sequence counter. IDs generated in the same millisecond (or in a past
  * millisecond if the clock jumped backward) will use the millisecond time
  * of the latest generated ID and an incremented sequence. */
+/**
+ * 消息ID 128bit
+ */
 typedef struct streamID {
+    // 从1970 01 01 至今的毫秒数
     uint64_t ms;        /* Unix time in milliseconds. */
+    // 序号
     uint64_t seq;       /* Sequence number. */
 } streamID;
 
 typedef struct stream {
+    // 以streamId为key 生成rax树
     rax *rax;               /* The radix tree holding the stream. */
+    // 元素个数
     uint64_t length;        /* Number of elements inside this stream. */
+    // 最后的消息id
     streamID last_id;       /* Zero if there are yet no items. */
+    // 消费组 以消费组名称为key, streamCG为value的rax树
     rax *cgroups;           /* Consumer groups dictionary: name -> streamCG */
 } stream;
 
@@ -49,26 +58,33 @@ typedef struct streamIterator {
 
 /* Consumer group. */
 typedef struct streamCG {
+    // 最后发送的消息ID(未应答)
     streamID last_id;       /* Last delivered (not acknowledged) ID for this
                                group. Consumers that will just ask for more
                                messages will served with IDs > than this. */
+    // 未答应消息待确认消息列表
     rax *pel;               /* Pending entries list. This is a radix tree that
                                has every message delivered to consumers (without
                                the NOACK option) that was yet not acknowledged
                                as processed. The key of the radix tree is the
                                ID as a 64 bit big endian number, while the
                                associated value is a streamNACK structure.*/
+    // 消费组中的消费者, 消费者name为key
     rax *consumers;         /* A radix tree representing the consumers by name
                                and their associated representation in the form
                                of streamConsumer structures. */
 } streamCG;
 
 /* A specific consumer in a consumer group.  */
+// 消费者组中的消费者
 typedef struct streamConsumer {
+    // 消费组最后一次活跃时间
     mstime_t seen_time;         /* Last time this consumer was active. */
+    // 消费者名称
     sds name;                   /* Consumer name. This is how the consumer
                                    will be identified in the consumer group
                                    protocol. Case sensitive. */
+    // 待确认消息列表
     rax *pel;                   /* Consumer specific pending entries list: all
                                    the pending messages delivered to this
                                    consumer not yet acknowledged. Keys are
@@ -79,9 +95,13 @@ typedef struct streamConsumer {
 } streamConsumer;
 
 /* Pending (yet not acknowledged) message in a consumer group. */
+// 消费组中未确认的消息
 typedef struct streamNACK {
+    // 发送消息的最后时间
     mstime_t delivery_time;     /* Last time this message was delivered. */
+    // 消息被发送的次数
     uint64_t delivery_count;    /* Number of times this message was delivered.*/
+    // 消息发送的对象
     streamConsumer *consumer;   /* The consumer this message was delivered to
                                    in the last delivery. */
 } streamNACK;
