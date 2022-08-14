@@ -36,23 +36,37 @@ typedef struct stream {
  * rewriting code that also needs to iterate the stream to emit the XADD
  * commands. */
 typedef struct streamIterator {
+    // 执行当前迭代的stream
     stream *stream;         /* The stream we are iterating. */
+    // master entry的消息ID
     streamID master_id;     /* ID of the master entry at listpack head. */
+    // master entry中的field域个数
     uint64_t master_fields_count;       /* Master entries # of fields. */
+    // master entry 中的field域存储的首地址
     unsigned char *master_fields_start; /* Master entries start in listpack. */
+    // 指向field域地址的具体位置
     unsigned char *master_fields_ptr;   /* Master field to emit next. */
+    // 当前遍历消息的标志位
     int entry_flags;                    /* Flags of entry we are emitting. */
+    // 当前迭代器方向
     int rev;                /* True if iterating end to start (reverse). */
+    // 起始消息的ID: ms seq
     uint64_t start_key[2];  /* Start key as 128 bit big endian. */
+    // 结束的消息ID
     uint64_t end_key[2];    /* End key as 128 bit big endian. */
     raxIterator ri;         /* Rax iterator. */
+    // 指向当前listpack
     unsigned char *lp;      /* Current listpack. */
+    // 指向当前正在遍历的元素
     unsigned char *lp_ele;  /* Current listpack cursor. */
+    // 指向当前消息的flag
     unsigned char *lp_flags; /* Current entry flags pointer. */
     /* Buffers used to hold the string of lpGet() when the element is
      * integer encoded, so that there is no string representation of the
      * element inside the listpack itself. */
+    // 读取field域的数据缓存
     unsigned char field_buf[LP_INTBUF_SIZE];
+    // 读取value的数据缓存
     unsigned char value_buf[LP_INTBUF_SIZE];
 } streamIterator;
 
