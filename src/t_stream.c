@@ -1384,6 +1384,7 @@ void xlenCommand(client *c) {
  * This is useful because while XREAD is a read command and can be called
  * on slaves, XREAD-GROUP is not. */
 #define XREAD_BLOCKED_DEFAULT_COUNT 1000
+// 读取消息命令
 void xreadCommand(client *c) {
     long long timeout = -1; /* -1 means, no BLOCK argument given. */
     long long count = 0;
@@ -1460,13 +1461,17 @@ void xreadCommand(client *c) {
     /* Parse the IDs and resolve the group name. */
     if (streams_count > STREAMID_STATIC_VECTOR_LEN)
         ids = zmalloc(sizeof(streamID)*streams_count);
+    // 如果有组, 则为每个stream申请streamCG的内存空间
     if (groupname) groups = zmalloc(sizeof(streamCG*)*streams_count);
 
+    // 循环遍历所有的stream名字和后面的id, 根据id来设置对应的stream ids的读取的其实位置
     for (int i = streams_arg + streams_count; i < c->argc; i++) {
         /* Specifying "$" as last-known-id means that the client wants to be
          * served with just the messages that will arrive into the stream
          * starting from now. */
+        // 每个stream对应的起始id id_idx 第几个stream的id
         int id_idx = i - streams_arg - streams_count;
+        // key对应i的stream位置
         robj *key = c->argv[i-streams_count];
         robj *o = lookupKeyRead(c->db,key);
         if (o && checkType(c,o,OBJ_STREAM)) goto cleanup;
@@ -1487,6 +1492,7 @@ void xreadCommand(client *c) {
             groups[id_idx] = group;
         }
 
+        // 处理参数id, 是 "$"
         if (strcmp(c->argv[i]->ptr,"$") == 0) {
             if (xreadgroup) {
                 addReplyError(c,"The $ ID is meaningless in the context of "
@@ -1498,6 +1504,7 @@ void xreadCommand(client *c) {
             }
             if (o) {
                 stream *s = o->ptr;
+                // 每个stream的起始id=当前消息的最大id
                 ids[id_idx] = s->last_id;
             } else {
                 ids[id_idx].ms = 0;
@@ -1514,6 +1521,7 @@ void xreadCommand(client *c) {
             /* We use just the maximum ID to signal this is a ">" ID, anyway
              * the code handling the blocking clients will have to update the
              * ID later in order to match the changing consumer group last ID. */
+            // streamID ids[id_idx]=group->last_id
             ids[id_idx].ms = UINT64_MAX;
             ids[id_idx].seq = UINT64_MAX;
             continue;
@@ -1525,11 +1533,13 @@ void xreadCommand(client *c) {
     /* Try to serve the client synchronously. */
     size_t arraylen = 0;
     void *arraylen_ptr = NULL;
+    // 遍历每个stream
     for (int i = 0; i < streams_count; i++) {
         robj *o = lookupKeyRead(c->db,c->argv[streams_arg+i]);
         if (o == NULL) continue;
         stream *s = o->ptr;
         streamID *gt = ids+i; /* ID must be greater than this. */
+        // 读取标识, 1标识可读
         int serve_synchronously = 0;
         int serve_history = 0; /* True for XREADGROUP with ID != ">". */
 
@@ -1550,6 +1560,7 @@ void xreadCommand(client *c) {
                  * than what the stream has inside. */
                 streamID maxid, *last = &groups[i]->last_id;
                 streamLastValidID(s, &maxid);
+                // 当前消息id大于组消费的最大id, 有新数据, 可读
                 if (streamCompareID(&maxid, last) > 0) {
                     serve_synchronously = 1;
                     *gt = *last;
@@ -1586,6 +1597,7 @@ void xreadCommand(client *c) {
             int flags = 0;
             if (noack) flags |= STREAM_RWR_NOACK;
             if (serve_history) flags |= STREAM_RWR_HISTORY;
+            // 同步读取数据
             streamReplyWithRange(c,s,&start,NULL,count,0,
                                  groups ? groups[i] : NULL,
                                  consumer, flags, &spi);
@@ -1607,6 +1619,7 @@ void xreadCommand(client *c) {
             addReply(c,shared.nullmultibulk);
             goto cleanup;
         }
+        // 阻塞等待 redis的block机制
         blockForKeys(c, BLOCKED_STREAM, c->argv+streams_arg, streams_count,
                      timeout, NULL, ids);
         /* If no COUNT is given and we block, set a relatively small count:
@@ -1619,6 +1632,7 @@ void xreadCommand(client *c) {
          * keys receive more data, we can call streamReplyWithRange() passing
          * the right arguments. */
         if (groupname) {
+            // 记录组名
             incrRefCount(groupname);
             incrRefCount(consumername);
             c->bpop.xread_group = groupname;
@@ -1682,14 +1696,18 @@ void streamFreeConsumer(streamConsumer *sc) {
  * already existed NULL is returned, otherwise the pointer to the consumer
  * group is returned. */
 streamCG *streamCreateCG(stream *s, char *name, size_t namelen, streamID *id) {
+    // 如果当前消息流尚未有消费组, 则新建消费组
     if (s->cgroups == NULL) s->cgroups = raxNew();
+    // 查看是否已经有该消费组, 有则新建失败
     if (raxFind(s->cgroups,(unsigned char*)name,namelen) != raxNotFound)
         return NULL;
 
+    // 新建消费组, 并初始化相关变量
     streamCG *cg = zmalloc(sizeof(*cg));
     cg->pel = raxNew();
     cg->consumers = raxNew();
     cg->last_id = *id;
+    // 将该消费组插入到消息流的消费组树中, 以消费组的名称为key, 对应的streamCG为value
     raxInsert(s->cgroups,(unsigned char*)name,namelen,cg,NULL);
     return cg;
 }
