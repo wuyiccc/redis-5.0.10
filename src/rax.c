@@ -1091,6 +1091,7 @@ int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
             h = raxStackPop(&ts);
              /* If this node has more then one child, or actually holds
               * a key, stop here. */
+             // 如果节点为key或者子节点个数不为1, 则无法继续删除
             if (h->iskey || (!h->iscompr && h->size != 1)) break;
         }
         if (child) {
@@ -1110,6 +1111,7 @@ int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
 
             /* If after the removal the node has just a single child
              * and is not a key, we need to try to compress it. */
+            // 删除后查看是否可以删除
             if (new->size == 1 && new->iskey == 0) {
                 trycompress = 1;
                 h = new;
@@ -1118,6 +1120,7 @@ int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
     } else if (h->size == 1) {
         /* If the node had just one child, after the removal of the key
          * further compression with adjacent nodes is pontentially possible. */
+        // 可以尝试进行压缩
         trycompress = 1;
     }
 
@@ -1177,6 +1180,7 @@ int raxRemove(rax *rax, unsigned char *s, size_t len, void **old) {
          * At the end of the loop 'h' will point to the first node we
          * can try to compress and 'parent' to its parent. */
         raxNode *parent;
+        // 从记录栈中不断弹出元素
         while(1) {
             parent = raxStackPop(&ts);
             if (!parent || parent->iskey ||
