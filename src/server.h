@@ -464,10 +464,15 @@ typedef long long ustime_t; /* microsecond time type. */
 /* A redis object, that is a type able to hold a string / list / set */
 
 /* The actual Redis Object */
+// 字符串
 #define OBJ_STRING 0    /* String object. */
+// 列表
 #define OBJ_LIST 1      /* List object. */
+// 集合
 #define OBJ_SET 2       /* Set object. */
+// 有序集合
 #define OBJ_ZSET 3      /* Sorted set object. */
+// 散列
 #define OBJ_HASH 4      /* Hash object. */
 
 /* The "module" object type is a special one that signals that the object
@@ -481,7 +486,9 @@ typedef long long ustime_t; /* microsecond time type. */
  * by a 64 bit module type ID, which has a 54 bits module-specific signature
  * in order to dispatch the loading to the right module, plus a 10 bits
  * encoding version. */
+// 模块
 #define OBJ_MODULE 5    /* Module object. */
+// stream
 #define OBJ_STREAM 6    /* Stream object. */
 
 /* Extract encver / signature from a module type ID. */
@@ -595,16 +602,27 @@ typedef struct RedisModuleDigest {
 /* Objects encoding. Some kind of objects like Strings and Hashes can be
  * internally represented in multiple ways. The 'encoding' field of the object
  * is set to one of this fields for this object. */
+// 简单动态字符串
 #define OBJ_ENCODING_RAW 0     /* Raw representation */
+// 整数
 #define OBJ_ENCODING_INT 1     /* Encoded as integer */
+// 字典
 #define OBJ_ENCODING_HT 2      /* Encoded as hash table */
+// 压缩字典, 不再使用
 #define OBJ_ENCODING_ZIPMAP 3  /* Encoded as zipmap */
+// 双向链表, 不再使用
 #define OBJ_ENCODING_LINKEDLIST 4 /* No longer used: old list encoding. */
+// 压缩链表
 #define OBJ_ENCODING_ZIPLIST 5 /* Encoded as ziplist */
+// 整数集合
 #define OBJ_ENCODING_INTSET 6  /* Encoded as intset */
+// 跳跃表
 #define OBJ_ENCODING_SKIPLIST 7  /* Encoded as skiplist */
+// 简单的sds
 #define OBJ_ENCODING_EMBSTR 8  /* Embedded sds string encoding */
+// 快速链表
 #define OBJ_ENCODING_QUICKLIST 9 /* Encoded as linked list of ziplists */
+// stream
 #define OBJ_ENCODING_STREAM 10 /* Encoded as a radix tree of listpacks */
 
 #define LRU_BITS 24
@@ -612,13 +630,21 @@ typedef struct RedisModuleDigest {
 #define LRU_CLOCK_RESOLUTION 1000 /* LRU clock resolution in ms */
 
 #define OBJ_SHARED_REFCOUNT INT_MAX
+/**
+ * redis对象, 用于封装value
+ */
 typedef struct redisObject {
+    // value的类型
     unsigned type:4;
+    // value的编码
     unsigned encoding:4;
+    // 最近访问时间或访问频次
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
+    // 引用对象计数
     int refcount;
+    // 指向具体值的指针
     void *ptr;
 } robj;
 
