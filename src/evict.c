@@ -77,9 +77,12 @@ unsigned int getLRUClock(void) {
  * precomputed value, otherwise we need to resort to a system call. */
 unsigned int LRU_CLOCK(void) {
     unsigned int lruclock;
+    // 1000/执行频次
     if (1000/server.hz <= LRU_CLOCK_RESOLUTION) {
+        // 取server.lruclock
         atomicGet(server.lruclock,lruclock);
     } else {
+        // 取系统时间unix秒级时间戳
         lruclock = getLRUClock();
     }
     return lruclock;
@@ -312,11 +315,15 @@ unsigned long LFUTimeElapsed(unsigned long ldt) {
 
 /* Logarithmically increment a counter. The greater is the current counter value
  * the less likely is that it gets really implemented. Saturate it at 255. */
+// 概率增长
 uint8_t LFULogIncr(uint8_t counter) {
+    // 最大255
     if (counter == 255) return 255;
     double r = (double)rand()/RAND_MAX;
+    // 新对象初始值5
     double baseval = counter - LFU_INIT_VAL;
     if (baseval < 0) baseval = 0;
+    // 概率计算
     double p = 1.0/(baseval*server.lfu_log_factor+1);
     if (r < p) counter++;
     return counter;
@@ -333,8 +340,12 @@ uint8_t LFULogIncr(uint8_t counter) {
  * to fit: as we check for the candidate, we incrementally decrement the
  * counter of the scanned objects if needed. */
 unsigned long LFUDecrAndReturn(robj *o) {
+    // 取redisObject的lru属性的高16位
     unsigned long ldt = o->lru >> 8;
+    // 取低8位
     unsigned long counter = o->lru & 255;
+    // lfu_decay_time: 衰减时间
+    // num_periods: 衰减值
     unsigned long num_periods = server.lfu_decay_time ? LFUTimeElapsed(ldt) / server.lfu_decay_time : 0;
     if (num_periods)
         counter = (num_periods > counter) ? 0 : counter - num_periods;
