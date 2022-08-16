@@ -143,7 +143,9 @@ static unsigned char *zipmapLookupRaw(unsigned char *zm, unsigned char *key, uns
         unsigned char free;
 
         /* Match or skip the key */
+        // 解码
         l = zipmapDecodeLength(p);
+        // 获得len
         llen = zipmapEncodeLength(NULL,l);
         if (key != NULL && k == NULL && l == klen && !memcmp(p+llen,key,l)) {
             /* Only return when the user doesn't care
@@ -219,6 +221,7 @@ unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int kle
     p = zipmapLookupRaw(zm,key,klen,&zmlen);
     if (p == NULL) {
         /* Key not found: enlarge */
+        // 申请内存
         zm = zipmapResize(zm, zmlen+reqlen);
         p = zm+zmlen-1;
         zmlen = zmlen+reqlen;
@@ -229,6 +232,7 @@ unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int kle
         /* Key found. Is there enough space for the new value? */
         /* Compute the total length: */
         if (update) *update = 1;
+        // 计算freelen
         freelen = zipmapRawEntryLength(p);
         if (freelen < reqlen) {
             /* Store the offset of this key within the current zipmap, so
