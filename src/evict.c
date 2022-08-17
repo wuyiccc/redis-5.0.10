@@ -51,10 +51,15 @@
  * Empty entries have the key pointer set to NULL. */
 #define EVPOOL_SIZE 16
 #define EVPOOL_CACHED_SDS_SIZE 255
+// 样本池节点
 struct evictionPoolEntry {
+    // 空闲时长
     unsigned long long idle;    /* Object idle time (inverse frequency for LFU) */
+    // key
     sds key;                    /* Key name. */
+    // key name缓存
     sds cached;                 /* Cached SDS object for key name. */
+    // key所在的db
     int dbid;                   /* Key DB number. */
 };
 
@@ -161,12 +166,21 @@ void evictionPoolAlloc(void) {
  * We insert keys on place in ascending order, so keys with the smaller
  * idle time are on the left, and keys with the higher idle time on the
  * right. */
-
+/**
+ * 选择样本数据加入到样本池中
+ * @param dbid 选择的db
+ * @param sampledict 样本字典
+ * @param keydict key的字典
+ * @param pool 样本池指向
+ */
 void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evictionPoolEntry *pool) {
     int j, k, count;
+    // 样本, 默认为5
     dictEntry *samples[server.maxmemory_samples];
 
+    // 从样本字典中随机获取一些key
     count = dictGetSomeKeys(sampledict,samples,server.maxmemory_samples);
+    // 根据key获得value redisObject或过期时间 (db.expires value 是过期时间)
     for (j = 0; j < count; j++) {
         unsigned long long idle;
         sds key;
@@ -179,14 +193,17 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
         /* If the dictionary we are sampling from is not the main
          * dictionary (but the expires one) we need to lookup the key
          * again in the key dictionary to obtain the value object. */
+        // policy不是ttl
         if (server.maxmemory_policy != MAXMEMORY_VOLATILE_TTL) {
             if (sampledict != keydict) de = dictFind(keydict, key);
+            // 获取value, redisObject
             o = dictGetVal(de);
         }
 
         /* Calculate the idle time according to the policy. This is called
          * idle just because the code initially handled LRU, but is in fact
          * just a score where an higher score means better candidate. */
+        // policy 是lru
         if (server.maxmemory_policy & MAXMEMORY_FLAG_LRU) {
             idle = estimateObjectIdleTime(o);
         } else if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
@@ -200,6 +217,7 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
             idle = 255-LFUDecrAndReturn(o);
         } else if (server.maxmemory_policy == MAXMEMORY_VOLATILE_TTL) {
             /* In this case the sooner the expire the better. */
+            // dictGetVal 从db.expires中获得value: 是有效时, 时间越长idle越小
             idle = ULLONG_MAX - (long)dictGetVal(de);
         } else {
             serverPanic("Unknown eviction policy in evictionPoolPopulate()");
@@ -209,8 +227,10 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
          * First, find the first empty bucket or the first populated
          * bucket that has an idle time smaller than our idle time. */
         k = 0;
+        // 查找k位, 插入k+1, idle从小到大的顺序排列
         while (k < EVPOOL_SIZE &&
                pool[k].key &&
+               // 样本池中的数据idle小于选中的idle
                pool[k].idle < idle) k++;
         if (k == 0 && pool[EVPOOL_SIZE-1].key != NULL) {
             /* Can't insert if the element is < the worst element we have
@@ -473,6 +493,7 @@ int freeMemoryIfNeeded(void) {
 
     mem_freed = 0;
 
+    // 如果策略是不需要清除
     if (server.maxmemory_policy == MAXMEMORY_NO_EVICTION)
         goto cant_free; /* We need to free memory, but policy forbids. */
 
@@ -489,6 +510,7 @@ int freeMemoryIfNeeded(void) {
         if (server.maxmemory_policy & (MAXMEMORY_FLAG_LRU|MAXMEMORY_FLAG_LFU) ||
             server.maxmemory_policy == MAXMEMORY_VOLATILE_TTL)
         {
+            // 定义样本池指针
             struct evictionPoolEntry *pool = EvictionPoolLRU;
 
             while(bestkey == NULL) {
@@ -497,11 +519,14 @@ int freeMemoryIfNeeded(void) {
                 /* We don't want to make local-db choices when expiring keys,
                  * so to start populate the eviction pool sampling keys from
                  * every DB. */
+                // 循环db
                 for (i = 0; i < server.dbnum; i++) {
                     db = server.db+i;
+                    // 选择的样本字典, 如果是allkeys的这是整个字典是否是有效期的字典
                     dict = (server.maxmemory_policy & MAXMEMORY_FLAG_ALLKEYS) ?
                             db->dict : db->expires;
                     if ((keys = dictSize(dict)) != 0) {
+                        // 选择字典的key到样本池
                         evictionPoolPopulate(i, dict, db->dict, pool);
                         total_keys += keys;
                     }
@@ -509,6 +534,7 @@ int freeMemoryIfNeeded(void) {
                 if (!total_keys) break; /* No keys to evict. */
 
                 /* Go backward from best to worst element to evict. */
+                //从pool中的最后一个元素开始, (淘汰优先级是按从低到高的顺序排列的)
                 for (k = EVPOOL_SIZE-1; k >= 0; k--) {
                     if (pool[k].key == NULL) continue;
                     bestdbid = pool[k].dbid;
@@ -522,6 +548,7 @@ int freeMemoryIfNeeded(void) {
                     }
 
                     /* Remove the entry from the pool. */
+                    // 从pool中删除选中的key
                     if (pool[k].key != pool[k].cached)
                         sdsfree(pool[k].key);
                     pool[k].key = NULL;
@@ -540,6 +567,7 @@ int freeMemoryIfNeeded(void) {
         }
 
         /* volatile-random and allkeys-random policy */
+        // 如果淘汰策略是random
         else if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM ||
                  server.maxmemory_policy == MAXMEMORY_VOLATILE_RANDOM)
         {
@@ -552,6 +580,7 @@ int freeMemoryIfNeeded(void) {
                 dict = (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM) ?
                         db->dict : db->expires;
                 if (dictSize(dict) != 0) {
+                    // 选中db的随机key
                     de = dictGetRandomKey(dict);
                     bestkey = dictGetKey(de);
                     bestdbid = j;
@@ -561,8 +590,10 @@ int freeMemoryIfNeeded(void) {
         }
 
         /* Finally remove the selected key. */
+        // 从字典中删除选中的key
         if (bestkey) {
             db = server.db+bestdbid;
+            // 用key创建redisObject
             robj *keyobj = createStringObject(bestkey,sdslen(bestkey));
             propagateExpire(db,keyobj,server.lazyfree_lazy_eviction);
             /* We compute the amount of memory freed by db*Delete() alone.
@@ -575,6 +606,7 @@ int freeMemoryIfNeeded(void) {
              * we only care about memory used by the key space. */
             delta = (long long) zmalloc_used_memory();
             latencyStartMonitor(eviction_latency);
+            // 如果是懒删除模式, 则异步删除
             if (server.lazyfree_lazy_eviction)
                 dbAsyncDelete(db,keyobj);
             else
