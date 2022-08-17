@@ -346,10 +346,16 @@ void freeStreamObject(robj *o) {
     freeStream(o->ptr);
 }
 
+/**
+ * 自增引用计数
+ */
 void incrRefCount(robj *o) {
     if (o->refcount != OBJ_SHARED_REFCOUNT) o->refcount++;
 }
 
+/**
+ * 自减引用计数
+ */
 void decrRefCount(robj *o) {
     if (o->refcount == 1) {
         switch(o->type) {
