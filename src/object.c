@@ -38,6 +38,7 @@
 
 /* ===================== Creation and parsing of objects ==================== */
 
+// 创建对象
 robj *createObject(int type, void *ptr) {
     robj *o = zmalloc(sizeof(*o));
     o->type = type;
@@ -278,6 +279,7 @@ robj *createModuleObject(moduleType *mt, void *value) {
     return createObject(OBJ_MODULE,mv);
 }
 
+// 释放对应的 redisobject
 void freeStringObject(robj *o) {
     if (o->encoding == OBJ_ENCODING_RAW) {
         sdsfree(o->ptr);
@@ -399,6 +401,7 @@ robj *resetRefCount(robj *obj) {
     return obj;
 }
 
+// 检测对象类型
 int checkType(client *c, robj *o, int type) {
     if (o->type != type) {
         addReply(c,shared.wrongtypeerr);
