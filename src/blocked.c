@@ -614,6 +614,7 @@ void signalKeyAsReady(redisDb *db, robj *key) {
     if (dictFind(db->blocking_keys,key) == NULL) return;
 
     /* Key was already signaled? No need to queue it again. */
+    // 如果已经是要解除的key, 直接退出
     if (dictFind(db->ready_keys,key) != NULL) return;
 
     /* Ok, we need to queue this key into server.ready_keys. */
@@ -621,12 +622,14 @@ void signalKeyAsReady(redisDb *db, robj *key) {
     rl->key = key;
     rl->db = db;
     incrRefCount(key);
+    // 吧rl添加到ready_keys的尾
     listAddNodeTail(server.ready_keys,rl);
 
     /* We also add the key in the db->ready_keys dictionary in order
      * to avoid adding it multiple times into a list with a simple O(1)
      * check. */
     incrRefCount(key);
+    // 把key添加到db的ready_keys中
     serverAssert(dictAdd(db->ready_keys,key,NULL) == DICT_OK);
 }
 

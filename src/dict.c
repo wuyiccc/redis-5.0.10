@@ -277,9 +277,11 @@ static void _dictRehashStep(dict *d) {
 /* Add an element to the target hash table */
 int dictAdd(dict *d, void *key, void *val)
 {
+    // 添加key
     dictEntry *entry = dictAddRaw(d,key,NULL);
 
     if (!entry) return DICT_ERR;
+    // 添加value
     dictSetVal(d, entry, val);
     return DICT_OK;
 }

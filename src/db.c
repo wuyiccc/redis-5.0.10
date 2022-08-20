@@ -216,14 +216,23 @@ robj *lookupKeyWriteOrReply(client *c, robj *key, robj *reply) {
  * counter of the value if needed.
  *
  * The program is aborted if the key already exists. */
+/**
+ * 添加键值对
+ * @param db
+ * @param key
+ * @param val
+ */
 void dbAdd(redisDb *db, robj *key, robj *val) {
     sds copy = sdsdup(key->ptr);
+    // 添加到字典
     int retval = dictAdd(db->dict, copy, val);
 
     serverAssertWithInfo(NULL,key,retval == DICT_OK);
+    // 如果value的type是list或zset, 则需要解除阻塞
     if (val->type == OBJ_LIST ||
         val->type == OBJ_ZSET)
         signalKeyAsReady(db, key);
+    // 如果是集群, 将key添加到slot中
     if (server.cluster_enabled) slotToKeyAdd(key);
 }
 
@@ -263,6 +272,7 @@ void dbOverwrite(redisDb *db, robj *key, robj *val) {
  * 3) The expire time of the key is reset (the key is made persistent).
  *
  * All the new keys in the database should be created via this interface. */
+// 设置key的值
 void setKey(redisDb *db, robj *key, robj *val) {
     if (lookupKeyWrite(db,key) == NULL) {
         // 没找到则新增
