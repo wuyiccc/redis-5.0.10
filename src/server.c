@@ -2108,8 +2108,9 @@ void initServer(void) {
     }
 
     /* Create the Redis databases, and initialize other internal state. */
-    // 创建redis数据库
+    // 创建redis数据库 16个
     for (j = 0; j < server.dbnum; j++) {
+        // 创建键空间
         server.db[j].dict = dictCreate(&dbDictType,NULL);
         server.db[j].expires = dictCreate(&keyptrDictType,NULL);
         server.db[j].blocking_keys = dictCreate(&keylistDictType,NULL);

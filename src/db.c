@@ -55,14 +55,23 @@ void updateLFU(robj *val) {
 /* Low level key lookup API, not actually called directly from commands
  * implementations that should instead rely on lookupKeyRead(),
  * lookupKeyWrite() and lookupKeyReadWithFlags(). */
+/**
+ * @param db 要查找的db
+ * @param key  指定key
+ * @param flags 标识 none 普通 notouch: 不修改访问时间
+ * @return
+ */
 robj *lookupKey(redisDb *db, robj *key, int flags) {
+    // 调用dictFind查找指定节点
     dictEntry *de = dictFind(db->dict,key->ptr);
     if (de) {
+        // 获得节点的value
         robj *val = dictGetVal(de);
 
         /* Update the access time for the ageing algorithm.
          * Don't do it if we have a saving child, as this will trigger
          * a copy on write madness. */
+        // 如果没有子进程在做持久化, 并且是flags不是notouch
         if (server.rdb_child_pid == -1 &&
             server.aof_child_pid == -1 &&
             !(flags & LOOKUP_NOTOUCH))
@@ -73,6 +82,7 @@ robj *lookupKey(redisDb *db, robj *key, int flags) {
                 updateLFU(val);
             // 如果是lru
             } else {
+                // 更新lru_block
                 val->lru = LRU_CLOCK();
             }
         }
@@ -103,13 +113,22 @@ robj *lookupKey(redisDb *db, robj *key, int flags) {
  * for read operations. Even if the key expiry is master-driven, we can
  * correctly report a key is expired on slaves even if the master is lagging
  * expiring our key via DELs in the replication link. */
+/**
+ * 以指定方式查找key
+ * @param db
+ * @param key
+ * @param flags
+ * @return
+ */
 robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags) {
     robj *val;
 
+    // 判断过期时间
     if (expireIfNeeded(db,key) == 1) {
         /* Key expired. If we are in the context of a master, expireIfNeeded()
          * returns 0 only when the key does not exist at all, so it's safe
          * to return NULL ASAP. */
+        // 如果是主机
         if (server.masterhost == NULL) {
             server.stat_keyspace_misses++;
             return NULL;
@@ -136,16 +155,25 @@ robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags) {
             return NULL;
         }
     }
+    // 调用lookupKey查找
     val = lookupKey(db,key,flags);
     if (val == NULL)
+        // 没有命中+1
         server.stat_keyspace_misses++;
     else
+        // 命中+1
         server.stat_keyspace_hits++;
     return val;
 }
 
 /* Like lookupKeyReadWithFlags(), but does not use any flag, which is the
  * common case. */
+/**
+ * 以读的方式查找
+ * @param db
+ * @param key
+ * @return
+ */
 robj *lookupKeyRead(redisDb *db, robj *key) {
     return lookupKeyReadWithFlags(db,key,LOOKUP_NONE);
 }
@@ -155,11 +183,23 @@ robj *lookupKeyRead(redisDb *db, robj *key) {
  *
  * Returns the linked value object if the key exists or NULL if the key
  * does not exist in the specified DB. */
+/**
+ * 以写的方式查找
+ * @param db
+ * @param key
+ * @return
+ */
 robj *lookupKeyWrite(redisDb *db, robj *key) {
     expireIfNeeded(db,key);
     return lookupKey(db,key,LOOKUP_NONE);
 }
-
+/**
+ * 需要给客户端应答
+ * @param c
+ * @param key
+ * @param reply
+ * @return
+ */
 robj *lookupKeyReadOrReply(client *c, robj *key, robj *reply) {
     robj *o = lookupKeyRead(c->db, key);
     if (!o) addReply(c,reply);

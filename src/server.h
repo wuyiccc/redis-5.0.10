@@ -672,13 +672,21 @@ typedef struct clientReplyBlock {
  * by integers from 0 (the default database) up to the max configured
  * database. The database number is the 'id' field in the structure. */
 typedef struct redisDb {
+    // 数据库键 key:键 value: redisObject
     dict *dict;                 /* The keyspace for this DB */
+    // 键过期时间 key:键 value 有效期
     dict *expires;              /* Timeout of keys with a timeout set */
+    // 阻塞的键 key: 阻塞的键 value: 被阻塞的client
     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP)*/
+    // 解除阻塞的键 key: 要解除阻塞的key  value: 要解除阻塞的client
     dict *ready_keys;           /* Blocked keys that received a PUSH */
+    // watch的键 key: watch的键 value: client
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
+    // 数据库的id 0-15
     int id;                     /* Database ID */
+    // 平均有效期
     long long avg_ttl;          /* Average TTL, just for stats */
+    // 尝试碎片化整理的key列表
     list *defrag_later;         /* List of key names to attempt to defrag one by one, gradually. */
 } redisDb;
 
