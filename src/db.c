@@ -415,15 +415,26 @@ robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
  * On success the fuction returns the number of keys removed from the
  * database(s). Otherwise -1 is returned in the specific case the
  * DB number is out of range, and errno is set to EINVAL. */
+/**
+ * 清空数据库
+ * @param dbnum 选择要清空的数据库 -1 清空所有数据库
+ * @param flags 异步标识
+ * @param callback
+ * @return
+ */
 long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
+    // 异步标识 1 表示异步
     int async = (flags & EMPTYDB_ASYNC);
+    // 记录要删除的数据的数量
     long long removed = 0;
 
+    // dbnum不在范围内
     if (dbnum < -1 || dbnum >= server.dbnum) {
         errno = EINVAL;
         return -1;
     }
 
+    // 起始和结束db
     int startdb, enddb;
     if (dbnum == -1) {
         startdb = 0;
@@ -433,14 +444,18 @@ long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
     }
 
     for (int j = startdb; j <= enddb; j++) {
+        // 合计所有的dict的size
         removed += dictSize(server.db[j].dict);
         if (async) {
+            // 异步清空
             emptyDbAsync(&server.db[j]);
         } else {
+            // 同步清空
             dictEmpty(server.db[j].dict,callback);
             dictEmpty(server.db[j].expires,callback);
         }
     }
+    // 如果是集群
     if (server.cluster_enabled) {
         if (async) {
             slotToKeyFlushAsync();
@@ -448,10 +463,15 @@ long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
             slotToKeyFlush();
         }
     }
+    // 删除全部的db 删除从机的db
     if (dbnum == -1) flushSlaveKeysWithExpireList();
     return removed;
 }
-
+/**
+ * 选择要操作的db
+ * @param c
+ * @param id
+ */
 int selectDb(client *c, int id) {
     if (id < 0 || id >= server.dbnum)
         return C_ERR;

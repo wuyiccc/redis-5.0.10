@@ -141,10 +141,14 @@ void freeObjAsync(robj *o) {
  * create a new empty set of hash tables and scheduling the old ones for
  * lazy freeing. */
 void emptyDbAsync(redisDb *db) {
+    // dict *expires
     dict *oldht1 = db->dict, *oldht2 = db->expires;
+    // 清空数据 不是删除db 所以要创建空的dict和空的expires , 并赋值给当前db
     db->dict = dictCreate(&dbDictType,NULL);
     db->expires = dictCreate(&keyptrDictType,NULL);
+    // 添加到懒删除列表
     atomicIncr(lazyfree_objects,dictSize(oldht1));
+    // 创建后台job
     bioCreateBackgroundJob(BIO_LAZY_FREE,NULL,oldht1,oldht2);
 }
 
