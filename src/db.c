@@ -1187,18 +1187,26 @@ long long getExpire(redisDb *db, robj *key) {
  * AOF and the master->slave link guarantee operation ordering, everything
  * will be consistent even if we allow write operations against expiring
  * keys. */
+// 传播expire
 void propagateExpire(redisDb *db, robj *key, int lazy) {
+    // 要传播的expire
     robj *argv[2];
 
+    // 如果是懒删除则传播unlink, 否则是del
     argv[0] = lazy ? shared.unlink : shared.del;
+    // 要删除的key
     argv[1] = key;
+    // 增加引用计数
     incrRefCount(argv[0]);
     incrRefCount(argv[1]);
 
     if (server.aof_state != AOF_OFF)
+        // 要传播的命令追加到aof缓冲区
         feedAppendOnlyFile(server.delCommand,db->id,argv,2);
+    // 同步到slave中
     replicationFeedSlaves(server.slaves,db->id,argv,2);
 
+    // 减少引用计数
     decrRefCount(argv[0]);
     decrRefCount(argv[1]);
 }
