@@ -444,15 +444,20 @@ int dictDelete(dict *ht, const void *key) {
  * dictFreeUnlinkedEntry(entry); // <- This does not need to lookup again.
  */
 dictEntry *dictUnlink(dict *ht, const void *key) {
+    // 只删除, 不释放内存
     return dictGenericDelete(ht,key,1);
 }
 
 /* You need to call this function to really free the entry after a call
  * to dictUnlink(). It's safe to call this function with 'he' = NULL. */
+// 释放内存
 void dictFreeUnlinkedEntry(dict *d, dictEntry *he) {
     if (he == NULL) return;
+    // 释放key
     dictFreeKey(d, he);
+    // 释放value
     dictFreeVal(d, he);
+    // 释放节点
     zfree(he);
 }
 

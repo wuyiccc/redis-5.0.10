@@ -340,11 +340,14 @@ robj *dbRandomKey(redisDb *db) {
 }
 
 /* Delete a key, value, and associated expiration entry if any, from the DB */
+// 同步删除
 int dbSyncDelete(redisDb *db, robj *key) {
     /* Deleting an entry from the expires dict will not free the sds of
      * the key, because it is shared with the main dictionary. */
+    // 过期字典有数据, 则删除过期字典里的key 删除指针
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
+        // 删除slot和key映射表中的key
         if (server.cluster_enabled) slotToKeyDel(key);
         return 1;
     } else {
@@ -354,6 +357,7 @@ int dbSyncDelete(redisDb *db, robj *key) {
 
 /* This is a wrapper whose behavior depends on the Redis lazy free
  * configuration. Deletes the key synchronously or asynchronously. */
+// 删除
 int dbDelete(redisDb *db, robj *key) {
     return server.lazyfree_lazy_server_del ? dbAsyncDelete(db,key) :
                                              dbSyncDelete(db,key);
