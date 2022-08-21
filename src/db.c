@@ -1201,7 +1201,9 @@ void propagateExpire(redisDb *db, robj *key, int lazy) {
 
 /* Check if the key is expired. */
 int keyIsExpired(redisDb *db, robj *key) {
+    // 获取key过期时间
     mstime_t when = getExpire(db,key);
+    // 当前时间
     mstime_t now;
 
     if (when < 0) return 0; /* No expire for this key */
@@ -1214,6 +1216,7 @@ int keyIsExpired(redisDb *db, robj *key) {
      * only the first time it is accessed and not in the middle of the
      * script execution, making propagation to slaves / AOF consistent.
      * See issue #1525 on Github for more information. */
+    // unix 时间戳
     if (server.lua_caller) {
         now = server.lua_time_start;
     }
@@ -1256,6 +1259,12 @@ int keyIsExpired(redisDb *db, robj *key) {
  *
  * The return value of the function is 0 if the key is still valid,
  * otherwise the function returns 1 if the key is expired. */
+/**
+ * 惰性删除, 访问时才删除
+ * @param db
+ * @param key
+ * @return
+ */
 int expireIfNeeded(redisDb *db, robj *key) {
     if (!keyIsExpired(db,key)) return 0;
 
@@ -1271,9 +1280,12 @@ int expireIfNeeded(redisDb *db, robj *key) {
 
     /* Delete the key */
     server.stat_expiredkeys++;
+    // 将过期命名传给aof和从机
     propagateExpire(db,key,server.lazyfree_lazy_expire);
+    // 发送键操作通知 expired
     notifyKeyspaceEvent(NOTIFY_EXPIRED,
         "expired",key,db->id);
+    // 如果是异步处理过期则异步删除db中的key, 否则同步删除
     return server.lazyfree_lazy_expire ? dbAsyncDelete(db,key) :
                                          dbSyncDelete(db,key);
 }
