@@ -412,13 +412,22 @@ int checkAlreadyExpired(long long when) {
  *
  * unit is either UNIT_SECONDS or UNIT_MILLISECONDS, and is only used for
  * the argv[2] parameter. The basetime is always specified in milliseconds. */
+/**
+ * 设置key的过期时间
+ * @param c 客户端
+ * @param basetime 基准时间
+ * @param unit 单位 UNIT_SECONDS 秒
+ */
 void expireGenericCommand(client *c, long long basetime, int unit) {
+    // 获得参数 argv[0]: expire argv[1]: key argv[2] value
     robj *key = c->argv[1], *param = c->argv[2];
     long long when; /* unix time in milliseconds when the key will expire. */
 
+    // 返回when 毫秒
     if (getLongLongFromObjectOrReply(c, param, &when, NULL) != C_OK)
         return;
 
+    // 单位是秒. 则when * 1000 转为毫秒计算
     if (unit == UNIT_SECONDS) when *= 1000;
     when += basetime;
 
@@ -431,19 +440,26 @@ void expireGenericCommand(client *c, long long basetime, int unit) {
     if (checkAlreadyExpired(when)) {
         robj *aux;
 
+        // 如果是异步处理过期, 则异步删除key, 否则同步删除key
         int deleted = server.lazyfree_lazy_expire ? dbAsyncDelete(c->db,key) :
                                                     dbSyncDelete(c->db,key);
         serverAssertWithInfo(c,key,deleted);
         server.dirty++;
 
         /* Replicate/AOF this as an explicit DEL or UNLINK. */
+        // 如果是异步处理过期, 则传播unlink, 否则传播del
         aux = server.lazyfree_lazy_expire ? shared.unlink : shared.del;
+        // 修改客户端参数
         rewriteClientCommandVector(c,2,aux,key);
         signalModifiedKey(c->db,key);
+        // 发送键空间通知
         notifyKeyspaceEvent(NOTIFY_GENERIC,"del",key,c->db->id);
         addReply(c, shared.cone);
         return;
     } else {
+        // 如果是从节点或者正在加载数据
+
+        // 设置过期时间
         setExpire(c,c->db,key,when);
         addReply(c,shared.cone);
         signalModifiedKey(c->db,key);
@@ -478,6 +494,7 @@ void ttlGenericCommand(client *c, int output_ms) {
     long long expire, ttl = -1;
 
     /* If the key does not exist at all, return -2 */
+    // 在db中查找key, 不需要修改访问时间
     if (lookupKeyReadWithFlags(c->db,c->argv[1],LOOKUP_NOTOUCH) == NULL) {
         addReplyLongLong(c,-2);
         return;

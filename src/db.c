@@ -296,19 +296,26 @@ int dbExists(redisDb *db, robj *key) {
  * The function makes sure to return keys not already expired. */
 robj *dbRandomKey(redisDb *db) {
     dictEntry *de;
+    // 从机的最大循环次数限制
     int maxtries = 100;
+    // allvolatile: 1 db里的key都是设置有效期的key
     int allvolatile = dictSize(db->dict) == dictSize(db->expires);
 
     while(1) {
         sds key;
         robj *keyobj;
 
+        // 获得随机节点
         de = dictGetRandomKey(db->dict);
         if (de == NULL) return NULL;
 
+        // 获得节点的key
         key = dictGetKey(de);
+        // 创建key对象
         keyobj = createStringObject(key,sdslen(key));
+        // key设置了有效期
         if (dictFind(db->expires,key)) {
+            // 字典的key都有有效期并且是从机, 最大循环100次
             if (allvolatile && server.masterhost && --maxtries == 0) {
                 /* If the DB is composed only of keys with an expire set,
                  * it could happen that all the keys are already logically
@@ -318,13 +325,16 @@ robj *dbRandomKey(redisDb *db) {
                  * To prevent the infinite loop we do some tries, but if there
                  * are the conditions for an infinite loop, eventually we
                  * return a key name that may be already expired. */
+                // 如果是从机, 可能返回失效的key
                 return keyobj;
             }
+            // 主机key过期则删除, 从机 不删除
             if (expireIfNeeded(db,keyobj)) {
                 decrRefCount(keyobj);
                 continue; /* search for another key. This expired. */
             }
         }
+        // 返回key对象
         return keyobj;
     }
 }
@@ -1155,6 +1165,7 @@ long long getExpire(redisDb *db, robj *key) {
     dictEntry *de;
 
     /* No expire? return ASAP */
+    // 过期字典大小为0, 或者找不到key
     if (dictSize(db->expires) == 0 ||
        (de = dictFind(db->expires,key->ptr)) == NULL) return -1;
 
