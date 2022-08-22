@@ -977,13 +977,16 @@ client *lookupClientByID(uint64_t id) {
 
 /* Write data in output buffers to client. Return C_OK if the client
  * is still valid after the call, C_ERR if it was freed. */
+// 将输出缓冲区的数据写入socket
 int writeToClient(int fd, client *c, int handler_installed) {
     ssize_t nwritten = 0, totwritten = 0;
     size_t objlen;
     clientReplyBlock *o;
 
     while(clientHasPendingReplies(c)) {
+        // 输出缓冲区有数据
         if (c->bufpos > 0) {
+            // 写入到fd的socket
             nwritten = write(fd,c->buf+c->sentlen,c->bufpos-c->sentlen);
             if (nwritten <= 0) break;
             c->sentlen += nwritten;
@@ -991,11 +994,15 @@ int writeToClient(int fd, client *c, int handler_installed) {
 
             /* If the buffer was sent, set bufpos to zero to continue with
              * the remainder of the reply. */
+            // 数据已经发送
             if ((int)c->sentlen == c->bufpos) {
+                // 重置标志位
                 c->bufpos = 0;
                 c->sentlen = 0;
             }
+            // 缓冲区无数据
         } else {
+            // 从reply列表中获取数据
             o = listNodeValue(listFirst(c->reply));
             objlen = o->used;
 
@@ -1058,6 +1065,7 @@ int writeToClient(int fd, client *c, int handler_installed) {
     }
     if (!clientHasPendingReplies(c)) {
         c->sentlen = 0;
+        // 删除事件处理器
         if (handler_installed) aeDeleteFileEvent(server.el,c->fd,AE_WRITABLE);
 
         /* Close connection after entire reply has been sent. */
@@ -1083,9 +1091,11 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
 int handleClientsWithPendingWrites(void) {
     listIter li;
     listNode *ln;
+    // 获取待处理列表长度
     int processed = listLength(server.clients_pending_write);
 
     listRewind(server.clients_pending_write,&li);
+    // 循环处理
     while((ln = listNext(&li))) {
         client *c = listNodeValue(ln);
         c->flags &= ~CLIENT_PENDING_WRITE;
@@ -1113,6 +1123,7 @@ int handleClientsWithPendingWrites(void) {
             {
                 ae_flags |= AE_BARRIER;
             }
+            // 创建sendReplyToClient事件, 等待执行
             if (aeCreateFileEvent(server.el, c->fd, ae_flags,
                 sendReplyToClient, c) == AE_ERR)
             {
@@ -1421,6 +1432,7 @@ int processMultibulkBuffer(client *c) {
  * more query buffer to process, because we read more data from the socket
  * or because a client was blocked and later reactivated, so there could be
  * pending query buffer, already representing a full command, to process. */
+// 命令解析
 void processInputBuffer(client *c) {
     server.current_client = c;
 
@@ -1467,6 +1479,7 @@ void processInputBuffer(client *c) {
             resetClient(c);
         } else {
             /* Only reset the client when the command was executed. */
+            // 命令执行
             if (processCommand(c) == C_OK) {
                 if (c->flags & CLIENT_MASTER && !(c->flags & CLIENT_MULTI)) {
                     /* Update the applied replication offset of our master. */
@@ -1478,6 +1491,7 @@ void processInputBuffer(client *c) {
                  * still be able to access the client argv and argc field.
                  * The client will be reset in unblockClientFromModule(). */
                 if (!(c->flags & CLIENT_BLOCKED) || c->btype != BLOCKED_MODULE)
+                    // 重置client
                     resetClient(c);
             }
             /* freeMemoryIfNeeded may flush slave output buffers. This may
@@ -1501,9 +1515,13 @@ void processInputBuffer(client *c) {
  * is flagged as master. Usually you want to call this instead of the
  * raw processInputBuffer(). */
 void processInputBufferAndReplicate(client *c) {
+    // 主client
     if (!(c->flags & CLIENT_MASTER)) {
+        // 命令解析
         processInputBuffer(c);
-    } else {
+    }
+    // 主client master
+    else {
         size_t prev_offset = c->reploff;
         processInputBuffer(c);
         size_t applied = c->reploff - prev_offset;
@@ -1515,6 +1533,7 @@ void processInputBufferAndReplicate(client *c) {
     }
 }
 
+// 当客户端发送命令时处理
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     client *c = (client*) privdata;
     int nread, readlen;

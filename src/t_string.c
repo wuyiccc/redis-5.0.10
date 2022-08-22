@@ -63,17 +63,32 @@ static int checkStringLength(client *c, long long size) {
 #define OBJ_SET_XX (1<<1)     /* Set if key exists. */
 #define OBJ_SET_EX (1<<2)     /* Set if time in seconds is given */
 #define OBJ_SET_PX (1<<3)     /* Set if time in ms in given */
-
+/**
+ * 内部函数
+ * @param c client
+ * @param flags 标识
+ * @param key 指向key
+ * @param val
+ * @param expire 过期时间
+ * @param unit
+ * @param ok_reply 应答成功
+ * @param abort_reply 应答退出
+ */
 void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire, int unit, robj *ok_reply, robj *abort_reply) {
     long long milliseconds = 0; /* initialized to avoid any harmness warning */
 
+    // 如果存在过期时间
     if (expire) {
+        // 将expire转化为millseconds
         if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != C_OK)
             return;
+        // 过期时间小于等于0
         if (milliseconds <= 0) {
+            // 应答不合法过期时间
             addReplyErrorFormat(c,"invalid expire time in %s",c->cmd->name);
             return;
         }
+        // 如果单位是秒. 则milliseconds * 1000
         if (unit == UNIT_SECONDS) milliseconds *= 1000;
     }
 
@@ -83,26 +98,36 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
         addReply(c, abort_reply ? abort_reply : shared.nullbulk);
         return;
     }
+    // 成功设置, 添加或修改
     setKey(c->db,key,val);
     server.dirty++;
+    // 设置过期时间
     if (expire) setExpire(c,c->db,key,mstime()+milliseconds);
+    // 键空间通知
     notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);
     if (expire) notifyKeyspaceEvent(NOTIFY_GENERIC,
         "expire",key,c->db->id);
+    // 应答ok
     addReply(c, ok_reply ? ok_reply : shared.ok);
 }
 
 /* SET key value [NX] [XX] [EX <seconds>] [PX <milliseconds>] */
+// 外层函数
 void setCommand(client *c) {
     int j;
+    // 过期时间
     robj *expire = NULL;
+    // 默认秒
     int unit = UNIT_SECONDS;
+    // 标识 默认0
     int flags = OBJ_SET_NO_FLAGS;
 
     for (j = 3; j < c->argc; j++) {
         char *a = c->argv[j]->ptr;
+        // 过期时间
         robj *next = (j == c->argc-1) ? NULL : c->argv[j+1];
 
+        // 如果是nx或者NX, 并且不是xx
         if ((a[0] == 'n' || a[0] == 'N') &&
             (a[1] == 'x' || a[1] == 'X') && a[2] == '\0' &&
             !(flags & OBJ_SET_XX))
@@ -135,6 +160,7 @@ void setCommand(client *c) {
         }
     }
 
+    // 尝试将value转为数字
     c->argv[2] = tryObjectEncoding(c->argv[2]);
     setGenericCommand(c,flags,c->argv[1],c->argv[2],expire,unit,NULL,NULL);
 }

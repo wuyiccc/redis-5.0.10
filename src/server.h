@@ -757,19 +757,28 @@ typedef struct readyList {
 /* With multiplexing we need to take per-client state.
  * Clients are taken in a linked list. */
 typedef struct client {
+    // 客户端唯一自增的id
     uint64_t id;            /* Client incremental unique ID. */
+    // 伪客户端: fd=-1 aof或者lua 正常: 大于-1的整数
     int fd;                 /* Client socket. */
+    // 当前client操作的db
     redisDb *db;            /* Pointer to currently SELECTed DB. */
+    // 客户端名称 setname
     robj *name;             /* As set by CLIENT SETNAME. */
+    // 输入缓冲区 保存命令
     sds querybuf;           /* Buffer we use to accumulate client queries. */
+    // 输入缓冲区读取的位置
     size_t qb_pos;          /* The position we have read in querybuf. */
     sds pending_querybuf;   /* If this client is flagged as master, this buffer
                                represents the yet not applied portion of the
                                replication stream that we are receiving from
                                the master. */
     size_t querybuf_peak;   /* Recent (100ms or more) peak of querybuf size. */
+    // 参数个数
     int argc;               /* Num of arguments of current command. */
+    // 参数数组 sds
     robj **argv;            /* Arguments of current command. */
+    // 最后执行的命令
     struct redisCommand *cmd, *lastcmd;  /* Last command executed. */
     int reqtype;            /* Request protocol type: PROTO_REQ_* */
     int multibulklen;       /* Number of multi bulk arguments left to read. */
@@ -780,6 +789,7 @@ typedef struct client {
     size_t sentlen;         /* Amount of bytes already sent in the current
                                buffer or object being sent. */
     time_t ctime;           /* Client creation time. */
+    // 客户端与服务器最后一次互动时间, 用于计算超时
     time_t lastinteraction; /* Time of the last interaction, used for timeout */
     time_t obuf_soft_limit_reached_time;
     int flags;              /* Client flags: CLIENT_* macros. */
@@ -812,6 +822,7 @@ typedef struct client {
     listNode *client_list_node; /* list node in client list */
 
     /* Response buffer */
+    // 写入的缓冲区位置
     int bufpos;
     // 应答缓冲区
     char buf[PROTO_REPLY_CHUNK_BYTES];
@@ -993,6 +1004,7 @@ struct clusterState;
 struct redisServer {
     /* General */
     pid_t pid;                  /* Main process pid. */
+    // redis.conf绝对路径
     char *configfile;           /* Absolute config file path, or NULL */
     char *executable;           /* Absolute executable file path. */
     char **exec_argv;           /* Executable argv vector (copy). */
@@ -1000,11 +1012,16 @@ struct redisServer {
     int config_hz;              /* Configured HZ value. May be different than
                                    the actual 'hz' field value if dynamic-hz
                                    is enabled. */
+    // serverCron的执行频次
     int hz;                     /* serverCron() calls frequency in hertz */
+    // 数据库的数组
     redisDb *db;
+    // 命令库
     dict *commands;             /* Command table */
     dict *orig_commands;        /* Command table before command renaming. */
+    // 事件循环
     aeEventLoop *el;
+    // lru时间戳
     unsigned int lruclock;      /* Clock for LRU eviction */
     int shutdown_asap;          /* SHUTDOWN needed ASAP */
     int activerehashing;        /* Incremental rehash in serverCron() */
@@ -1026,17 +1043,21 @@ struct redisServer {
                                    client blocked on a module command needs
                                    to be processed. */
     /* Networking */
+    // 端口默认6379
     int port;                   /* TCP listening port */
     int tcp_backlog;            /* TCP listen() backlog */
+    // 绑定ip地址 数组 最多支持16个
     char *bindaddr[CONFIG_BINDADDR_MAX]; /* Addresses we should bind to */
     int bindaddr_count;         /* Number of addresses in server.bindaddr[] */
     char *unixsocket;           /* UNIX socket path */
     mode_t unixsocketperm;      /* UNIX socket permission */
+    // 在ip上建立的socket文件描述符
     int ipfd[CONFIG_BINDADDR_MAX]; /* TCP socket file descriptors */
     int ipfd_count;             /* Used slots in ipfd[] */
     int sofd;                   /* Unix socket file descriptor */
     int cfd[CONFIG_BINDADDR_MAX];/* Cluster bus listening socket */
     int cfd_count;              /* Used slots in cfd[] */
+    // 活动的client列表
     list *clients;              /* List of active clients */
     list *clients_to_close;     /* Clients to close asynchronously */
     list *clients_pending_write; /* There is to write or install handler. */
@@ -1057,6 +1078,7 @@ struct redisServer {
     time_t loading_start_time;
     off_t loading_process_events_interval_bytes;
     /* Fast pointers to often looked up command */
+    // 最常用的命令
     struct redisCommand *delCommand, *multiCommand, *lpushCommand,
                         *lpopCommand, *rpopCommand, *zpopminCommand,
                         *zpopmaxCommand, *sremCommand, *execCommand,
@@ -1215,6 +1237,7 @@ struct redisServer {
     int repl_diskless_sync_delay;   /* Delay to start a diskless repl BGSAVE. */
     /* Replication (slave) */
     char *masterauth;               /* AUTH with this password with master */
+    // 主机的名称
     char *masterhost;               /* Hostname of master */
     int masterport;                 /* Port of master */
     int repl_timeout;               /* Timeout after N seconds of master idle */

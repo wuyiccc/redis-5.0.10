@@ -1424,6 +1424,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
     flushAppendOnlyFile(0);
 
     /* Handle writes with pending output buffers. */
+    // 处理向客户端写入数据
     handleClientsWithPendingWrites();
 
     /* Before we are going to sleep, let the threads access the dataset by
@@ -2232,6 +2233,7 @@ void InitServerLast() {
 
 /* Populates the Redis Command Table starting from the hard coded list
  * we have on top of redis.c file. */
+// 初始化rediscommand
 void populateCommandTable(void) {
     int j;
     int numcommands = sizeof(redisCommandTable)/sizeof(struct redisCommand);
@@ -2323,6 +2325,7 @@ void redisOpArrayFree(redisOpArray *oa) {
 
 /* ====================== Commands lookup and execution ===================== */
 
+// 根据名称查找值value
 struct redisCommand *lookupCommand(sds name) {
     return dictFetchValue(server.commands, name);
 }
@@ -2618,6 +2621,7 @@ int processCommand(client *c) {
 
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
+    // 在命令字典里查找命令是否存在, 并赋值
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
     if (!c->cmd) {
         flagTransaction(c);
@@ -2797,6 +2801,7 @@ int processCommand(client *c) {
         c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
         c->cmd->proc != multiCommand && c->cmd->proc != watchCommand)
     {
+        // 入队
         queueMultiCommand(c);
         addReply(c,shared.queued);
     } else {
