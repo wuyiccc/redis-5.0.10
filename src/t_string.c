@@ -180,21 +180,26 @@ void psetexCommand(client *c) {
     setGenericCommand(c,OBJ_SET_NO_FLAGS,c->argv[1],c->argv[3],c->argv[2],UNIT_MILLISECONDS,NULL,NULL);
 }
 
+// 真正处理函数
 int getGenericCommand(client *c) {
     robj *o;
 
+    // 调用lookupKeyRead 如果obj是空, 则应答null
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL)
         return C_OK;
 
+    // o不为null 类型不是string
     if (o->type != OBJ_STRING) {
         addReply(c,shared.wrongtypeerr);
         return C_ERR;
     } else {
+        // 块应答
         addReplyBulk(c,o);
         return C_OK;
     }
 }
 
+// get key
 void getCommand(client *c) {
     getGenericCommand(c);
 }
@@ -308,18 +313,27 @@ void getrangeCommand(client *c) {
     }
 }
 
+// mget key1 key2 ...
 void mgetCommand(client *c) {
     int j;
 
+    // 应答结果数 key的数量
     addReplyMultiBulkLen(c,c->argc-1);
+    // key1 key2
     for (j = 1; j < c->argc; j++) {
+        // 以读的方式查找key对应的o
         robj *o = lookupKeyRead(c->db,c->argv[j]);
+        // 没找到
         if (o == NULL) {
+            // 应答空
             addReply(c,shared.nullbulk);
         } else {
+            // 类型不是string
             if (o->type != OBJ_STRING) {
+                // 应答null
                 addReply(c,shared.nullbulk);
             } else {
+                // 应答块
                 addReplyBulk(c,o);
             }
         }
