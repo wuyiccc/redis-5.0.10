@@ -240,9 +240,11 @@ robj *createIntsetObject(void) {
     return o;
 }
 
+// 创建新的hash, encoding默认为ziplist
 robj *createHashObject(void) {
     unsigned char *zl = ziplistNew();
     robj *o = createObject(OBJ_HASH, zl);
+    // 编码类型ziplist
     o->encoding = OBJ_ENCODING_ZIPLIST;
     return o;
 }
