@@ -64,11 +64,16 @@ robj *listTypePop(robj *subject, int where) {
     long long vlong;
     robj *value = NULL;
 
+    // ql_where = 0 或 -1
     int ql_where = where == LIST_HEAD ? QUICKLIST_HEAD : QUICKLIST_TAIL;
+    // 编码是quicklist
     if (subject->encoding == OBJ_ENCODING_QUICKLIST) {
+        // 从list中弹出value
         if (quicklistPopCustom(subject->ptr, ql_where, (unsigned char **)&value,
                                NULL, &vlong, listPopSaver)) {
+            // value不是空
             if (!value)
+                // 创建字符串对象, 值是value
                 value = createStringObjectFromLongLong(vlong);
         }
     } else {
@@ -383,22 +388,29 @@ void lsetCommand(client *c) {
     }
 }
 
+// 弹出 where head或者tail
 void popGenericCommand(client *c, int where) {
+    // 根据key找对应的redisobj, 没找到应答null
     robj *o = lookupKeyWriteOrReply(c,c->argv[1],shared.nullbulk);
+    // 是空或者obj类型不是list, 则返回
     if (o == NULL || checkType(c,o,OBJ_LIST)) return;
 
+    // 从list中弹出value
     robj *value = listTypePop(o,where);
     if (value == NULL) {
         addReply(c,shared.nullbulk);
     } else {
+        // 事件 如果是head则是lpop
         char *event = (where == LIST_HEAD) ? "lpop" : "rpop";
 
         addReplyBulk(c,value);
+        // 值引用计数-1
         decrRefCount(value);
         notifyKeyspaceEvent(NOTIFY_LIST,event,c->argv[1],c->db->id);
         if (listTypeLength(o) == 0) {
             notifyKeyspaceEvent(NOTIFY_GENERIC,"del",
                                 c->argv[1],c->db->id);
+            // 删除list对应的key
             dbDelete(c->db,c->argv[1]);
         }
         signalModifiedKey(c->db,c->argv[1]);
@@ -406,6 +418,7 @@ void popGenericCommand(client *c, int where) {
     }
 }
 
+// lpop key
 void lpopCommand(client *c) {
     popGenericCommand(c,LIST_HEAD);
 }
