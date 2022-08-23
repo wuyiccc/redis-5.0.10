@@ -225,13 +225,19 @@ void pushGenericCommand(client *c, int where) {
         listTypePush(lobj,c->argv[j],where);
         pushed++;
     }
+    // 应答数量
     addReplyLongLong(c, (lobj ? listTypeLength(lobj) : 0));
+    // 推入成功
     if (pushed) {
+        // 如果是head, 则是lpush, 否则是rpush
         char *event = (where == LIST_HEAD) ? "lpush" : "rpush";
 
+        // 键修改
         signalModifiedKey(c->db,c->argv[1]);
+        // 发送键空间通知
         notifyKeyspaceEvent(NOTIFY_LIST,event,c->argv[1],c->db->id);
     }
+    // 服务器修改的数据
     server.dirty += pushed;
 }
 
