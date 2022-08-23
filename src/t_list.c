@@ -38,12 +38,18 @@
  *
  * There is no need for the caller to increment the refcount of 'value' as
  * the function takes care of it if needed. */
+// 把value添加到list中
 void listTypePush(robj *subject, robj *value, int where) {
+    // 如果encoding是quicklist
     if (subject->encoding == OBJ_ENCODING_QUICKLIST) {
+        // 根据where确定是head还是tail
         int pos = (where == LIST_HEAD) ? QUICKLIST_HEAD : QUICKLIST_TAIL;
+        // 解码value
         value = getDecodedObject(value);
         size_t len = sdslen(value->ptr);
+        // 调用quicklistPush将value添加到push中
         quicklistPush(subject->ptr, value->ptr, len, pos);
+        // 减少引用计数
         decrRefCount(value);
     } else {
         serverPanic("Unknown list encoding");
@@ -194,20 +200,26 @@ void listTypeConvert(robj *subject, int enc) {
  * List Commands
  *----------------------------------------------------------------------------*/
 
+// 内部函数 where header或者tail
 void pushGenericCommand(client *c, int where) {
     int j, pushed = 0;
+    // 在db中查找key
     robj *lobj = lookupKeyWrite(c->db,c->argv[1]);
 
+    // 找到了, 类别不是list, 应答错误
     if (lobj && lobj->type != OBJ_LIST) {
         addReply(c,shared.wrongtypeerr);
         return;
     }
 
     for (j = 2; j < c->argc; j++) {
+        // 没找到
         if (!lobj) {
+            // 创建list
             lobj = createQuicklistObject();
             quicklistSetOptions(lobj->ptr, server.list_max_ziplist_size,
                                 server.list_compress_depth);
+            // 添加到db中
             dbAdd(c->db,c->argv[1],lobj);
         }
         listTypePush(lobj,c->argv[j],where);
@@ -223,6 +235,7 @@ void pushGenericCommand(client *c, int where) {
     server.dirty += pushed;
 }
 
+// plush key1 val1 val2 val3
 void lpushCommand(client *c) {
     pushGenericCommand(c,LIST_HEAD);
 }
