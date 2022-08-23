@@ -226,6 +226,7 @@ robj *createZiplistObject(void) {
     return o;
 }
 
+// 创建一个dict
 robj *createSetObject(void) {
     dict *d = dictCreate(&setDictType,NULL);
     robj *o = createObject(OBJ_SET,d);
