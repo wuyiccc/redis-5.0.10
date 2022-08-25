@@ -39,37 +39,52 @@ typedef struct aeApiState {
     struct epoll_event *events;
 } aeApiState;
 
+// 创建epoll对象
+// eventLoop redis事件处理
 static int aeApiCreate(aeEventLoop *eventLoop) {
+    // 给epoll的数据存储分配内存
     aeApiState *state = zmalloc(sizeof(aeApiState));
 
     if (!state) return -1;
+    // 给epoll的事件数组分配内存, 用于存储已就绪事件
     state->events = zmalloc(sizeof(struct epoll_event)*eventLoop->setsize);
     if (!state->events) {
         zfree(state);
         return -1;
     }
+    // 调用linux系统的epoll_create
+    // 1024 默认创建的socket数, 创建eventpoll
     state->epfd = epoll_create(1024); /* 1024 is just a hint for the kernel */
     if (state->epfd == -1) {
         zfree(state->events);
         zfree(state);
         return -1;
     }
+    // apidata 就是redis事件处理的io多路复用的对象
     eventLoop->apidata = state;
     return 0;
 }
 
+// 重新分配内存大小
 static int aeApiResize(aeEventLoop *eventLoop, int setsize) {
+    // 获取原有的io多路复用对象
     aeApiState *state = eventLoop->apidata;
 
+    // epoll的事件数组重新分配内存大小
     state->events = zrealloc(state->events, sizeof(struct epoll_event)*setsize);
     return 0;
 }
 
+// 释放epoll
 static void aeApiFree(aeEventLoop *eventLoop) {
+    // 获得redis事件处理的epoll对象
     aeApiState *state = eventLoop->apidata;
 
+    // 关闭epoll
     close(state->epfd);
+    // 释放事件数组
     zfree(state->events);
+    // 释放epoll
     zfree(state);
 }
 
