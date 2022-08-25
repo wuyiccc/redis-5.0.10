@@ -88,19 +88,29 @@ static void aeApiFree(aeEventLoop *eventLoop) {
     zfree(state);
 }
 
+// 添加或修改指定fd的监听
 static int aeApiAddEvent(aeEventLoop *eventLoop, int fd, int mask) {
+    // 获取redis事件处理的epoll对象
     aeApiState *state = eventLoop->apidata;
     struct epoll_event ee = {0}; /* avoid valgrind warning */
     /* If the fd was already monitored for some event, we need a MOD
      * operation. Otherwise we need an ADD operation. */
+    // 判断fd上的标识, 如果是没有监听, 则添加监听操作, 否则修改监听
+    // op 操作 EPOLL_CTL_ADD EPOLL_CTL_MODE 修改 EPOLL_CTL_DEL 删除
     int op = eventLoop->events[fd].mask == AE_NONE ?
             EPOLL_CTL_ADD : EPOLL_CTL_MOD;
 
     ee.events = 0;
     mask |= eventLoop->events[fd].mask; /* Merge old events */
+    // 转epoll的事件类型为ae的事件类型
+    // ae_readable -> epollin
     if (mask & AE_READABLE) ee.events |= EPOLLIN;
     if (mask & AE_WRITABLE) ee.events |= EPOLLOUT;
     ee.data.fd = fd;
+    // epfd 就是epoll_create创建的epfd
+    // op 操作 注册 修改 删除
+    // fd: socket的fd
+    // event: 监控的事件
     if (epoll_ctl(state->epfd,op,fd,&ee) == -1) return -1;
     return 0;
 }
