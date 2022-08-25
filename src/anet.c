@@ -437,13 +437,16 @@ int anetWrite(int fd, char *buf, int count)
     return totlen;
 }
 
+// 监听端口
 static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len, int backlog) {
+    // 调用绑定函数, 将s绑定到sa上
     if (bind(s,sa,len) == -1) {
         anetSetError(err, "bind: %s", strerror(errno));
         close(s);
         return ANET_ERR;
     }
 
+    // 调用listen函数, 有连接则写入s并初始化accept queue的长度, 511
     if (listen(s, backlog) == -1) {
         anetSetError(err, "listen: %s", strerror(errno));
         close(s);
@@ -462,29 +465,45 @@ static int anetV6Only(char *err, int s) {
     return ANET_OK;
 }
 
+// 内部函数, 启动监听
+// err: 错误
+// port: 端口
+// bindaddr: 绑定地址
+// af: ip类别 AF_INET6
 static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backlog)
 {
     int s = -1, rv;
+    // 端口 最大65535
     char _port[6];  /* strlen("65535") */
     struct addrinfo hints, *servinfo, *p;
 
     snprintf(_port,6,"%d",port);
     memset(&hints,0,sizeof(hints));
+    // ip类别
     hints.ai_family = af;
+    // socket 类别
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;    /* No effect if bindaddr != NULL */
 
+    // 获得地址结构
     if ((rv = getaddrinfo(bindaddr,_port,&hints,&servinfo)) != 0) {
         anetSetError(err, "%s", gai_strerror(rv));
         return ANET_ERR;
     }
+    // 循环地址结构
     for (p = servinfo; p != NULL; p = p->ai_next) {
+        // socket初始化失败
         if ((s = socket(p->ai_family,p->ai_socktype,p->ai_protocol)) == -1)
+            // 继续循环
             continue;
 
+        // ipv6 并且仅初始化ipv6失败, 则跳到失败
         if (af == AF_INET6 && anetV6Only(err,s) == ANET_ERR) goto error;
+        // 设置可以允许进程复用端口
         if (anetSetReuseAddr(err,s) == ANET_ERR) goto error;
+        // 监听端口成功
         if (anetListen(err,s,p->ai_addr,p->ai_addrlen,backlog) == ANET_ERR) s = ANET_ERR;
+        // 成功就跳到结束
         goto end;
     }
     if (p == NULL) {

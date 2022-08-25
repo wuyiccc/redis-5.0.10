@@ -1937,23 +1937,31 @@ void checkTcpBacklogSettings(void) {
  * one of the IPv4 or IPv6 protocols. */
 /**
  * 启动监听, 创建socket, 支持ipv4/ipv6
+ * 默认6379
+ * fds: 文件描述符 socket
+ * count 文件描述符个数
  */
 int listenToPort(int port, int *fds, int *count) {
     int j;
 
     /* Force binding of 0.0.0.0 if no bind address is specified, always
      * entering the loop if j == 0. */
+    // 表示0.0.0.0 所有地址都能访问
     if (server.bindaddr_count == 0) server.bindaddr[0] = NULL;
     for (j = 0; j < server.bindaddr_count || j == 0; j++) {
         if (server.bindaddr[j] == NULL) {
             int unsupported = 0;
             /* Bind * for both IPv6 and IPv4, we enter here only if
              * server.bindaddr_count == 0. */
+            // 初始化ipv6 绑定地址为null, server.tcp_backlog 就是accept queue的长度
             fds[*count] = anetTcp6Server(server.neterr,port,NULL,
                 server.tcp_backlog);
+            // 初始化成功
             if (fds[*count] != ANET_ERR) {
+                // 将文件描述符设为非阻塞
                 anetNonBlock(NULL,fds[*count]);
                 (*count)++;
+                // 不支持的协议
             } else if (errno == EAFNOSUPPORT) {
                 unsupported++;
                 serverLog(LL_WARNING,"Not listening to IPv6: unsupproted");
@@ -1961,6 +1969,7 @@ int listenToPort(int port, int *fds, int *count) {
 
             if (*count == 1 || unsupported) {
                 /* Bind the IPv4 address as well. */
+                // 初始化ipv4 绑定地址为null
                 fds[*count] = anetTcpServer(server.neterr,port,NULL,
                     server.tcp_backlog);
                 if (fds[*count] != ANET_ERR) {
@@ -1975,8 +1984,10 @@ int listenToPort(int port, int *fds, int *count) {
              * otherwise fds[*count] will be ANET_ERR and we'll print an
              * error and return to the caller with an error. */
             if (*count + unsupported == 2) break;
+            // 有绑定地址, 是ipv6型
         } else if (strchr(server.bindaddr[j],':')) {
             /* Bind IPv6 address. */
+            // 初始化ipv6 绑定地址是server.bindaddr[j]
             fds[*count] = anetTcp6Server(server.neterr,port,server.bindaddr[j],
                 server.tcp_backlog);
         } else {
@@ -2088,11 +2099,13 @@ void initServer(void) {
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
     /* Open the TCP listening socket for the user commands. */
+    // 监听普通tcp连接
     if (server.port != 0 &&
         listenToPort(server.port,server.ipfd,&server.ipfd_count) == C_ERR)
         exit(1);
 
     /* Open the listening Unix domain socket. */
+    // unix的套接字
     if (server.unixsocket != NULL) {
         unlink(server.unixsocket); /* don't care if this fails */
         server.sofd = anetUnixServer(server.neterr,server.unixsocket,
