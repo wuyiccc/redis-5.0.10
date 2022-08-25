@@ -32,7 +32,10 @@
 #include <sys/epoll.h>
 
 typedef struct aeApiState {
+    // epoll的文件描述符号
     int epfd;
+    // int events 事件类型
+    // epoll_data_t data  fd: 文件描述符 *ptr 具体的文件的指针
     struct epoll_event *events;
 } aeApiState;
 
