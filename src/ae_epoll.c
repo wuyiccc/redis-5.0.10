@@ -115,9 +115,17 @@ static int aeApiAddEvent(aeEventLoop *eventLoop, int fd, int mask) {
     return 0;
 }
 
+/**
+ * 删除或修改指定fd的监听
+ * @param eventLoop redis事件处理
+ * @param fd
+ * @param delmask
+ */
 static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int delmask) {
+    // 获取io多路复用对象
     aeApiState *state = eventLoop->apidata;
     struct epoll_event ee = {0}; /* avoid valgrind warning */
+    // events需要监控的事件数组
     int mask = eventLoop->events[fd].mask & (~delmask);
 
     ee.events = 0;
@@ -125,10 +133,13 @@ static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int delmask) {
     if (mask & AE_WRITABLE) ee.events |= EPOLLOUT;
     ee.data.fd = fd;
     if (mask != AE_NONE) {
+        // 监听事件的修改
         epoll_ctl(state->epfd,EPOLL_CTL_MOD,fd,&ee);
+        // 没有监听事件
     } else {
         /* Note, Kernel < 2.6.9 requires a non null event pointer even for
          * EPOLL_CTL_DEL. */
+        // 则删除监听事件
         epoll_ctl(state->epfd,EPOLL_CTL_DEL,fd,&ee);
     }
 }
