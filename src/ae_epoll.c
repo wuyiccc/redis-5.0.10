@@ -144,22 +144,34 @@ static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int delmask) {
     }
 }
 
+// 阻塞等待事件发生
+// tvp 超时时间, 超过tvp还没有事件发生 则返回超时 0 直接返回 -1 有事件发生才返回
 static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
+    // 获取当前redis事件的io多路复用对象
     aeApiState *state = eventLoop->apidata;
     int retval, numevents = 0;
 
+    // 调用epoll_wait阻塞等待事件发生
+    // epfd: epoll_create返回的epfd
+    // setsize 处理的最大事件数目
+    // tvp 超时时间 毫秒
     retval = epoll_wait(state->epfd,state->events,eventLoop->setsize,
+            // 秒*1000+微妙/1000
             tvp ? (tvp->tv_sec*1000 + tvp->tv_usec/1000) : -1);
     if (retval > 0) {
         int j;
 
         numevents = retval;
+        // 循环已就绪的事件数组
         for (j = 0; j < numevents; j++) {
             int mask = 0;
             struct epoll_event *e = state->events+j;
 
+            // EPOLLIN->AE_READABLE
             if (e->events & EPOLLIN) mask |= AE_READABLE;
+            // EPOLLOUT->AE_WRITABLE
             if (e->events & EPOLLOUT) mask |= AE_WRITABLE;
+            // EPOLLERR->AE_WRIATBLE
             if (e->events & EPOLLERR) mask |= AE_WRITABLE;
             if (e->events & EPOLLHUP) mask |= AE_WRITABLE;
             eventLoop->fired[j].fd = e->data.fd;
@@ -169,6 +181,7 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
     return numevents;
 }
 
+// 获取IO多路复用的名称
 static char *aeApiName(void) {
     return "epoll";
 }
