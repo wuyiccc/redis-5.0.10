@@ -62,49 +62,80 @@
 struct aeEventLoop;
 
 /* Types and data structures */
+// 回调函数处理文件事件发生
 typedef void aeFileProc(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask);
 typedef int aeTimeProc(struct aeEventLoop *eventLoop, long long id, void *clientData);
 typedef void aeEventFinalizerProc(struct aeEventLoop *eventLoop, void *clientData);
 typedef void aeBeforeSleepProc(struct aeEventLoop *eventLoop);
 
 /* File event structure */
+// 文件事件
 typedef struct aeFileEvent {
+    // 文件事件类型 可读 可写 先写后读(一般是先读后写, 一个处理)
     int mask; /* one of AE_(READABLE|WRITABLE|BARRIER) */
+    // 读处理回调函数指针
     aeFileProc *rfileProc;
+    // 写处理回调函数指针
     aeFileProc *wfileProc;
+    // 客户端数据
     void *clientData;
 } aeFileEvent;
 
 /* Time event structure */
+// 时间事件
 typedef struct aeTimeEvent {
+    // 时间id 自增
     long long id; /* time event identifier. */
+    // 时间事件发生的秒
     long when_sec; /* seconds */
+    // 时间事件发生的毫秒
     long when_ms; /* milliseconds */
+    // 时间事件处理回调函数 serverCron
     aeTimeProc *timeProc;
+    // 时间事件删除处理的回调函数
     aeEventFinalizerProc *finalizerProc;
+    // 客户端数据
     void *clientData;
+    // 上一个时间事件
     struct aeTimeEvent *prev;
+    // 下一个时间事件
     struct aeTimeEvent *next;
 } aeTimeEvent;
 
 /* A fired event */
+// 就绪的文件事件
 typedef struct aeFiredEvent {
+    // 就绪的文件对象的fd
     int fd;
+    // 就绪的文件类型
     int mask;
 } aeFiredEvent;
 
 /* State of an event based program */
+// 事件循环结构
+// 存储 文件事件 就绪事件 时间事件 和 IO多路复用对象
 typedef struct aeEventLoop {
+    // 当前注册的最大fd setsize - 1
     int maxfd;   /* highest file descriptor currently registered */
+    // 监听的fd的最大数量
     int setsize; /* max number of file descriptors tracked */
+    // 下一个时间事件的id
     long long timeEventNextId;
+    // 最后一次执行事件的时间
     time_t lastTime;     /* Used to detect system clock skew */
+    // 注册的文件事件 是setsize大小的数组 从0开始到maxfd
     aeFileEvent *events; /* Registered events */
+    // 就绪的文件事件 是setsize大小的数组
     aeFiredEvent *fired; /* Fired events */
+    // 时间事件, 指向双向链表的头
     aeTimeEvent *timeEventHead;
+    // 事件处理停止标识
     int stop;
+    // 指向具体的io多路复用对象
     void *apidata; /* This is used for polling API specific data */
+    // 事件处理开始前的回调函数 处理异步操作 aof刷盘, 客户端应答, 快速过期删除
     aeBeforeSleepProc *beforesleep;
+    // 事件处理结束后的回调函数
     aeBeforeSleepProc *aftersleep;
 } aeEventLoop;
 
