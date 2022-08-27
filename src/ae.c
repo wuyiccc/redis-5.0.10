@@ -118,19 +118,26 @@ int aeGetSetSize(aeEventLoop *eventLoop) {
  * performed at all.
  *
  * Otherwise AE_OK is returned and the operation is successful. */
+// 重新申请内存
 int aeResizeSetSize(aeEventLoop *eventLoop, int setsize) {
     int i;
 
+    // 要设置的size等于setsize
     if (setsize == eventLoop->setsize) return AE_OK;
+    // 最大的fd大于等于要设置的size
     if (eventLoop->maxfd >= setsize) return AE_ERR;
+    // IO多路复用resize
     if (aeApiResize(eventLoop,setsize) == -1) return AE_ERR;
 
+    // events数组重新申请内存
     eventLoop->events = zrealloc(eventLoop->events,sizeof(aeFileEvent)*setsize);
+    // fired数组重新申请内存
     eventLoop->fired = zrealloc(eventLoop->fired,sizeof(aeFiredEvent)*setsize);
     eventLoop->setsize = setsize;
 
     /* Make sure that if we created new slots, they are initialized with
      * an AE_NONE mask. */
+    // 循环依次将新生成的event的事件类型设置为无事件
     for (i = eventLoop->maxfd+1; i < setsize; i++)
         eventLoop->events[i].mask = AE_NONE;
     return AE_OK;
