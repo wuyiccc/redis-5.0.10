@@ -1105,35 +1105,46 @@ void updateCachedTime(int update_daylight_info) {
  * a macro is used: run_with_period(milliseconds) { .... }
  */
 
+// redis定时器
 int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     int j;
+    // 参数一个没用
     UNUSED(eventLoop);
     UNUSED(id);
     UNUSED(clientData);
 
     /* Software watchdog: deliver the SIGALRM that will reach the signal
      * handler if we don't return here fast enough. */
+    // 开启看门狗
     if (server.watchdog_period) watchdogScheduleSignal(server.watchdog_period);
 
     /* Update the time cache. */
+    // 更新时间 系统时间缓存在server中
     updateCachedTime(1);
 
+    // 执行频次, 默认是配置的频次
     server.hz = server.config_hz;
     /* Adapt the server.hz value to the number of configured clients. If we have
      * many clients, we want to call serverCron() with an higher frequency. */
+    // 开启动态hz
     if (server.dynamic_hz) {
         while (listLength(server.clients) / server.hz >
                MAX_CLIENTS_PER_CLOCK_TICK)
         {
+            // 每次扩大为原来的两倍
             server.hz *= 2;
+            // 频次大于最大频次
             if (server.hz > CONFIG_MAX_HZ) {
+                // 执行频次等于最大频次
                 server.hz = CONFIG_MAX_HZ;
                 break;
             }
         }
     }
 
+    // 满足条件执行代码块
     run_with_period(100) {
+        // 统计命令数 网络输入字节数 网络输出字节数
         trackInstantaneousMetric(STATS_METRIC_COMMAND,server.stat_numcommands);
         trackInstantaneousMetric(STATS_METRIC_NET_INPUT,
                 server.stat_net_input_bytes);
@@ -1156,14 +1167,18 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     atomicSet(server.lruclock,lruclock);
 
     /* Record the max memory used since the server was started. */
+    // 使用内存大于峰值内存
     if (zmalloc_used_memory() > server.stat_peak_memory)
+        // 峰值内存等于使用内存
         server.stat_peak_memory = zmalloc_used_memory();
 
     run_with_period(100) {
         /* Sample the RSS and other metrics here since this is a relatively slow call.
          * We must sample the zmalloc_used at the same time we take the rss, otherwise
          * the frag ratio calculate may be off (ratio of two samples at different times) */
+        // 常驻内存
         server.cron_malloc_stats.process_rss = zmalloc_get_rss();
+        // 使用内存
         server.cron_malloc_stats.zmalloc_used = zmalloc_used_memory();
         /* Sampling the allcator info can be slow too.
          * The fragmentation ratio it'll show is potentically more accurate
@@ -1190,17 +1205,21 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     /* We received a SIGTERM, shutting down here in a safe way, as it is
      * not ok doing so inside the signal handler. */
     if (server.shutdown_asap) {
+        // 准备退出
         if (prepareForShutdown(SHUTDOWN_NOFLAGS) == C_OK) exit(0);
         serverLog(LL_WARNING,"SIGTERM received but errors trying to shut down the server, check the logs for more information");
         server.shutdown_asap = 0;
     }
 
     /* Show some info about non-empty databases */
+    // 记录不是空的数据库
     run_with_period(5000) {
         for (j = 0; j < server.dbnum; j++) {
             long long size, used, vkeys;
 
+            // 字典
             size = dictSlots(server.db[j].dict);
+            // 使用
             used = dictSize(server.db[j].dict);
             vkeys = dictSize(server.db[j].expires);
             if (used || vkeys) {
@@ -1211,10 +1230,12 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     }
 
     /* Show information about connected clients */
+    // 不是哨兵
     if (!server.sentinel_mode) {
         run_with_period(5000) {
             serverLog(LL_VERBOSE,
                 "%lu clients connected (%lu replicas), %zu bytes in use",
+                // 连接的client的数量 slave数  使用内存
                 listLength(server.clients)-listLength(server.slaves),
                 listLength(server.slaves),
                 zmalloc_used_memory());
@@ -1222,13 +1243,16 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     }
 
     /* We need to do a few operations on clients asynchronously. */
+    //清理空闲的client或释放querybuf未被使用的空间
     clientsCron();
 
     /* Handle background operations on Redis databases. */
+    // 处理db 慢速过期删除  热sizerehash
     databasesCron();
 
     /* Start a scheduled AOF rewrite if this was requested by the user while
      * a BGSAVE was in progress. */
+    // 没有子进程在进行rdb和aof重写并且设置重写为待调度执行
     if (server.rdb_child_pid == -1 && server.aof_child_pid == -1 &&
         server.aof_rewrite_scheduled)
     {
@@ -1242,6 +1266,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
         int statloc;
         pid_t pid;
 
+        // 等待处理结构
         if ((pid = wait3(&statloc,WNOHANG,NULL)) != 0) {
             int exitcode = WEXITSTATUS(statloc);
             int bysignal = 0;
@@ -1254,7 +1279,9 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
                     strerror(errno),
                     (int) server.rdb_child_pid,
                     (int) server.aof_child_pid);
+                // 如果是rdb子进程
             } else if (pid == server.rdb_child_pid) {
+                // rdb收尾工作
                 backgroundSaveDoneHandler(exitcode,bysignal);
                 if (!bysignal && exitcode == 0) receiveChildInfo();
             } else if (pid == server.aof_child_pid) {
@@ -1267,9 +1294,11 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
                         (long)pid);
                 }
             }
+            // 不能resize
             updateDictResizePolicy();
             closeChildInfoPipe();
         }
+        // 没有正在执行的子进程
     } else {
         /* If there is not a background saving/rewrite in progress check if
          * we have to save/rewrite now. */
@@ -1337,14 +1366,17 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* Replication cron function -- used to reconnect to master,
      * detect transfer failures, start background RDB transfers and so forth. */
+    // 复制
     run_with_period(1000) replicationCron();
 
     /* Run the Redis Cluster cron. */
     run_with_period(100) {
+        // 集群
         if (server.cluster_enabled) clusterCron();
     }
 
     /* Run the Sentinel timer if we are in sentinel mode. */
+    // sentinel
     if (server.sentinel_mode) sentinelTimer();
 
     /* Cleanup expired MIGRATE cached sockets. */
