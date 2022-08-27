@@ -143,13 +143,25 @@ int aeResizeSetSize(aeEventLoop *eventLoop, int setsize) {
     return AE_OK;
 }
 
+/**
+ * 删除事件循环
+ * @param eventLoop
+ */
 void aeDeleteEventLoop(aeEventLoop *eventLoop) {
+    // IO多路复用删除
     aeApiFree(eventLoop);
+    // 释放events数组
     zfree(eventLoop->events);
+    // 释放fired数组
     zfree(eventLoop->fired);
+    // 释放eventLoop
     zfree(eventLoop);
 }
 
+/**
+ * 停止事件循环
+ * @param eventLoop
+ */
 void aeStop(aeEventLoop *eventLoop) {
     eventLoop->stop = 1;
 }
@@ -302,8 +314,15 @@ long long aeCreateTimeEvent(aeEventLoop *eventLoop, long long milliseconds,
     return id;
 }
 
+/**
+ * 删除时间事件
+ * @param eventLoop
+ * @param id 事件id
+ * @return
+ */
 int aeDeleteTimeEvent(aeEventLoop *eventLoop, long long id)
 {
+    // 从事件循环中获得时间事件
     aeTimeEvent *te = eventLoop->timeEventHead;
     while(te) {
         if (te->id == id) {
