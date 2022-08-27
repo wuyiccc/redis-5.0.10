@@ -827,10 +827,12 @@ void disconnectSlaves(void) {
 /* Remove the specified client from global lists where the client could
  * be referenced, not including the Pub/Sub channels.
  * This is used by freeClient() and replicationCacheMaster(). */
+// 打断连接
 void unlinkClient(client *c) {
     listNode *ln;
 
     /* If this is marked as current client unset it. */
+    // 是当前连接client, 则情况当前client
     if (server.current_client == c) server.current_client = NULL;
 
     /* Certain operations must be done only if the client has an active socket.
@@ -838,8 +840,10 @@ void unlinkClient(client *c) {
      * fd is already set to -1. */
     if (c->fd != -1) {
         /* Remove from the list of active clients. */
+        // client列表
         if (c->client_list_node) {
             uint64_t id = htonu64(c->id);
+            // 移除client节点
             raxRemove(server.clients_index,(unsigned char*)&id,sizeof(id),NULL);
             listDelNode(server.clients,c->client_list_node);
             c->client_list_node = NULL;
@@ -856,6 +860,7 @@ void unlinkClient(client *c) {
         }
 
         /* Unregister async I/O handlers and close the socket. */
+        // 从可读可写文件事件中删除对该client的fd的监听
         aeDeleteFileEvent(server.el,c->fd,AE_READABLE);
         aeDeleteFileEvent(server.el,c->fd,AE_WRITABLE);
         close(c->fd);
@@ -863,29 +868,36 @@ void unlinkClient(client *c) {
     }
 
     /* Remove from the list of pending writes if needed. */
+    // 是待写队列
     if (c->flags & CLIENT_PENDING_WRITE) {
+        // 找到client节点
         ln = listSearchKey(server.clients_pending_write,c);
         serverAssert(ln != NULL);
+        // 从待写队列中删除节点
         listDelNode(server.clients_pending_write,ln);
+        // 取消标志
         c->flags &= ~CLIENT_PENDING_WRITE;
     }
 
     /* When client was just unblocked because of a blocking operation,
      * remove it from the list of unblocked clients. */
+    // client是非阻塞
     if (c->flags & CLIENT_UNBLOCKED) {
+        // 从非阻塞队列中找到client节点
         ln = listSearchKey(server.unblocked_clients,c);
         serverAssert(ln != NULL);
         listDelNode(server.unblocked_clients,ln);
         c->flags &= ~CLIENT_UNBLOCKED;
     }
 }
-
+// 释放client
 void freeClient(client *c) {
     listNode *ln;
 
     /* If a client is protected, yet we need to free it right now, make sure
      * to at least use asynchronous freeing. */
     if (c->flags & CLIENT_PROTECTED) {
+        // 异步释放
         freeClientAsync(c);
         return;
     }
@@ -895,86 +907,113 @@ void freeClient(client *c) {
      *
      * Note that before doing this we make sure that the client is not in
      * some unexpected state, by checking its flags. */
+    // 主机并且是主client
     if (server.master && c->flags & CLIENT_MASTER) {
         serverLog(LL_WARNING,"Connection with master lost.");
         if (!(c->flags & (CLIENT_CLOSE_AFTER_REPLY|
                           CLIENT_CLOSE_ASAP|
                           CLIENT_BLOCKED)))
         {
+            // 复制主机缓存 为了做同步
             replicationCacheMaster(c);
             return;
         }
     }
 
     /* Log link disconnection with slave */
+    // 从机client 并且不是监视器
     if ((c->flags & CLIENT_SLAVE) && !(c->flags & CLIENT_MONITOR)) {
         serverLog(LL_WARNING,"Connection with replica %s lost.",
             replicationGetSlaveName(c));
     }
 
     /* Free the query buffer */
+    // 释放输入缓冲区
     sdsfree(c->querybuf);
     sdsfree(c->pending_querybuf);
     c->querybuf = NULL;
 
     /* Deallocate structures used to block on blocking ops. */
+    // 是阻塞, 解开阻塞
     if (c->flags & CLIENT_BLOCKED) unblockClient(c);
+    // 释放阻塞key的字典空间
     dictRelease(c->bpop.keys);
 
     /* UNWATCH all the keys */
+    // 清空watchkey
     unwatchAllKeys(c);
     listRelease(c->watched_keys);
 
     /* Unsubscribe from all the pubsub channels */
+    // 退订频道
     pubsubUnsubscribeAllChannels(c,0);
+    // 退订模式
     pubsubUnsubscribeAllPatterns(c,0);
     dictRelease(c->pubsub_channels);
     listRelease(c->pubsub_patterns);
 
     /* Free data structures. */
+    // 释放应答
     listRelease(c->reply);
+    // 情况客户端参数
     freeClientArgv(c);
 
     /* Unlink the client: this will close the socket, remove the I/O
      * handlers, and remove references of the client from different
      * places where active clients may be referenced. */
+    // 打断连接和移除引用
     unlinkClient(c);
 
     /* Master/slave cleanup Case 1:
      * we lost the connection with a slave. */
+    // 从机client 断开连接
     if (c->flags & CLIENT_SLAVE) {
+        // 发送rdb 主从复制
         if (c->replstate == SLAVE_STATE_SEND_BULK) {
+            // 释放rdb
             if (c->repldbfd != -1) close(c->repldbfd);
             if (c->replpreamble) sdsfree(c->replpreamble);
         }
+        // 监视主从链表
         list *l = (c->flags & CLIENT_MONITOR) ? server.monitors : server.slaves;
         ln = listSearchKey(l,c);
         serverAssert(ln != NULL);
+        // 删除client节点
         listDelNode(l,ln);
         /* We need to remember the time when we started to have zero
          * attached slaves, as after some time we'll free the replication
          * backlog. */
+        // 从节点链表为空
         if (getClientType(c) == CLIENT_TYPE_SLAVE && listLength(server.slaves) == 0)
+            // 更新不做主从复制时间
             server.repl_no_slaves_since = server.unixtime;
+        // 更新存活的slaves数目
         refreshGoodSlavesCount();
     }
 
     /* Master/slave cleanup Case 2:
      * we lost the connection with the master. */
+    // 主client 则断开连接
     if (c->flags & CLIENT_MASTER) replicationHandleMasterDisconnection();
 
     /* If this client was scheduled for async freeing we need to remove it
      * from the queue. */
+    // 要关闭
     if (c->flags & CLIENT_CLOSE_ASAP) {
+        // 在要关闭连接链表中找到client
         ln = listSearchKey(server.clients_to_close,c);
         serverAssert(ln != NULL);
+        // 删除client节点
         listDelNode(server.clients_to_close,ln);
     }
 
     /* Release other dynamically allocated client structure fields,
      * and finally release the client structure itself. */
+    // 减少名字的引用
     if (c->name) decrRefCount(c->name);
+    // 释放client参数列表
     zfree(c->argv);
+    // 释放事务状态
     freeClientMultiState(c);
     sdsfree(c->peerid);
     zfree(c);
