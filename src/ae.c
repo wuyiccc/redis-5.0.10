@@ -190,18 +190,29 @@ int aeCreateFileEvent(aeEventLoop *eventLoop, int fd, int mask,
     return AE_OK;
 }
 
+/**
+ * 删除fd上的事件
+ * @param eventLoop 事件循环
+ * @param fd 指定的fd
+ * @param mask 事件类型
+ */
 void aeDeleteFileEvent(aeEventLoop *eventLoop, int fd, int mask)
 {
+    // fd大于最大数量 则返回
     if (fd >= eventLoop->setsize) return;
+    // 获得fd对应的文件
     aeFileEvent *fe = &eventLoop->events[fd];
+    // 文件事件类型是无事件 则返回
     if (fe->mask == AE_NONE) return;
 
     /* We want to always remove AE_BARRIER if set when AE_WRITABLE
      * is removed. */
     if (mask & AE_WRITABLE) mask |= AE_BARRIER;
 
+    // IO多路复用删除fd下的指定事件
     aeApiDelEvent(eventLoop, fd, mask);
     fe->mask = fe->mask & (~mask);
+    // fd是最大fd并且无事件监听
     if (fd == eventLoop->maxfd && fe->mask == AE_NONE) {
         /* Update the max fd */
         int j;
