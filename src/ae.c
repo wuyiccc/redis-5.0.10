@@ -147,22 +147,38 @@ void aeStop(aeEventLoop *eventLoop) {
     eventLoop->stop = 1;
 }
 
+// 创建文件事件
+// eventloop 指向事件循环
+// fd: 指定fd
+// mask: 指定事件类型
+// proc: 指向事件处理回调函数
+// clientData: 客户端数据
 int aeCreateFileEvent(aeEventLoop *eventLoop, int fd, int mask,
         aeFileProc *proc, void *clientData)
 {
+    // fd 大于fd的最大数量
     if (fd >= eventLoop->setsize) {
         errno = ERANGE;
+        // 返回错误
         return AE_ERR;
     }
+    // 获取文件事件索引, 在文件事件数组中索引到文件事件(标识fd)
     aeFileEvent *fe = &eventLoop->events[fd];
 
+    // io多路复用 添加要监听的fd
     if (aeApiAddEvent(eventLoop, fd, mask) == -1)
         return AE_ERR;
+    // 文件事件的事件类型为mask
     fe->mask |= mask;
+    // 可读 设置事件的读回调函数 acceptTcpHandler, readQueryFromClient
     if (mask & AE_READABLE) fe->rfileProc = proc;
+    // 可写 设置事件的写回调函数 wfileProc:sendReplyToClient
     if (mask & AE_WRITABLE) fe->wfileProc = proc;
+    // 设置客户端数据
     fe->clientData = clientData;
+    // 当前fd大于最大fd
     if (fd > eventLoop->maxfd)
+        // 将当前fd设置为最大fd
         eventLoop->maxfd = fd;
     return AE_OK;
 }
