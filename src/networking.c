@@ -1609,12 +1609,14 @@ void processInputBufferAndReplicate(client *c) {
 
 // 当客户端发送命令时处理
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
+    // 获得client数据
     client *c = (client*) privdata;
     int nread, readlen;
     size_t qblen;
     UNUSED(el);
     UNUSED(mask);
 
+    // 读取长度 16K
     readlen = PROTO_IOBUF_LEN;
     /* If this is a multi bulk request, and we are processing a bulk reply
      * that is large enough, try to maximize the probability that the query
@@ -1622,9 +1624,11 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
      * at the risk of requiring more read(2) calls. This way the function
      * processMultiBulkBuffer() can avoid copying buffers to create the
      * Redis Object representing the argument. */
+    // 多条请求
     if (c->reqtype == PROTO_REQ_MULTIBULK && c->multibulklen && c->bulklen != -1
         && c->bulklen >= PROTO_MBULK_BIG_ARG)
     {
+        // 根据读入长度设置
         ssize_t remaining = (size_t)(c->bulklen+2)-sdslen(c->querybuf);
 
         /* Note that the 'remaining' variable may be zero in some edge case,
@@ -1632,41 +1636,57 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         if (remaining > 0 && remaining < readlen) readlen = remaining;
     }
 
+    // 输入缓冲区长度
     qblen = sdslen(c->querybuf);
+    // 读入峰值小于输入缓冲区长度, 则峰值等于输入缓冲区长度
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
+    // 输入缓冲区扩容readlen
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+    // 从socket中读取数据
     nread = read(fd, c->querybuf+qblen, readlen);
+    // 读取错误
     if (nread == -1) {
         if (errno == EAGAIN) {
             return;
         } else {
             serverLog(LL_VERBOSE, "Reading from client: %s",strerror(errno));
+            // 释放client
             freeClient(c);
             return;
         }
     } else if (nread == 0) {
         serverLog(LL_VERBOSE, "Client closed connection");
+        // 释放client
         freeClient(c);
         return;
+        // 正在读 主client
     } else if (c->flags & CLIENT_MASTER) {
         /* Append the query buffer to the pending (not applied) buffer
          * of the master. We'll use this buffer later in order to have a
          * copy of the string applied by the last command executed. */
+        // 串连接
         c->pending_querybuf = sdscatlen(c->pending_querybuf,
                                         c->querybuf+qblen,nread);
     }
 
+    // 增加querybuf的已用和未用的大小
     sdsIncrLen(c->querybuf,nread);
+    // 更新交互时间
     c->lastinteraction = server.unixtime;
+    // 主client更新复制偏移量
     if (c->flags & CLIENT_MASTER) c->read_reploff += nread;
+    // 增加输入字节数
     server.stat_net_input_bytes += nread;
+    // 输入缓冲区大小大于最大值
     if (sdslen(c->querybuf) > server.client_max_querybuf_len) {
+        // 清空输入缓冲区
         sds ci = catClientInfoString(sdsempty(),c), bytes = sdsempty();
 
         bytes = sdscatrepr(bytes,c->querybuf,64);
         serverLog(LL_WARNING,"Closing client that reached max query buffer length: %s (qbuf initial bytes: %s)", ci, bytes);
         sdsfree(ci);
         sdsfree(bytes);
+        // 释放client
         freeClient(c);
         return;
     }
@@ -1677,6 +1697,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
      * was actually applied to the master state: this quantity, and its
      * corresponding part of the replication stream, will be propagated to
      * the sub-slaves and to the replication backlog. */
+    // 解析和传播命令
     processInputBufferAndReplicate(c);
 }
 
