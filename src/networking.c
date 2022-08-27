@@ -1063,6 +1063,7 @@ int writeToClient(int fd, client *c, int handler_installed) {
             // 写入到fd的socket
             nwritten = write(fd,c->buf+c->sentlen,c->bufpos-c->sentlen);
             if (nwritten <= 0) break;
+            // 更新发送的计数器
             c->sentlen += nwritten;
             totwritten += nwritten;
 
@@ -1070,6 +1071,7 @@ int writeToClient(int fd, client *c, int handler_installed) {
              * the remainder of the reply. */
             // 数据已经发送
             if ((int)c->sentlen == c->bufpos) {
+                // 重置发送长度和buf的发送位置
                 // 重置标志位
                 c->bufpos = 0;
                 c->sentlen = 0;
@@ -1078,21 +1080,27 @@ int writeToClient(int fd, client *c, int handler_installed) {
         } else {
             // 从reply列表中获取数据
             o = listNodeValue(listFirst(c->reply));
+            // 获得对象长度
             objlen = o->used;
 
             if (objlen == 0) {
                 c->reply_bytes -= o->size;
+                // 删除节点
                 listDelNode(c->reply,listFirst(c->reply));
                 continue;
             }
 
+            // 对象不是空, 将对象的值写入fd
             nwritten = write(fd, o->buf + c->sentlen, objlen - c->sentlen);
             if (nwritten <= 0) break;
+            // 更新计数器
             c->sentlen += nwritten;
             totwritten += nwritten;
 
             /* If we fully sent the object on head go to the next one */
+            // 发送长度等于对象长度, 发送完成
             if (c->sentlen == objlen) {
+                // 回复数据大小等于回复数据大小减去发送的
                 c->reply_bytes -= o->size;
                 listDelNode(c->reply,listFirst(c->reply));
                 c->sentlen = 0;
@@ -1114,12 +1122,15 @@ int writeToClient(int fd, client *c, int handler_installed) {
          * Moreover, we also send as much as possible if the client is
          * a slave or a monitor (otherwise, on high-speed traffic, the
          * replication/output buffer will grow indefinitely) */
+        // 写入数大于最大写入 或者是内存不足
         if (totwritten > NET_MAX_WRITES_PER_EVENT &&
             (server.maxmemory == 0 ||
              zmalloc_used_memory() < server.maxmemory) &&
             !(c->flags & CLIENT_SLAVE)) break;
     }
+    // 网络输出数等于网络输入数+要写入数
     server.stat_net_output_bytes += totwritten;
+    // 写入失败
     if (nwritten == -1) {
         if (errno == EAGAIN) {
             nwritten = 0;
@@ -1130,16 +1141,20 @@ int writeToClient(int fd, client *c, int handler_installed) {
             return C_ERR;
         }
     }
+    // 写入成功
     if (totwritten > 0) {
         /* For clients representing masters we don't count sending data
          * as an interaction, since we always send REPLCONF ACK commands
          * that take some time to just fill the socket output buffer.
          * We just rely on data / pings received for timeout detection. */
+        // 不是主client则更新交互时间
         if (!(c->flags & CLIENT_MASTER)) c->lastinteraction = server.unixtime;
     }
+    // 输出缓冲区没有数据
     if (!clientHasPendingReplies(c)) {
         c->sentlen = 0;
         // 删除事件处理器
+        // 函数有效 删除fd上的可写事件监听
         if (handler_installed) aeDeleteFileEvent(server.el,c->fd,AE_WRITABLE);
 
         /* Close connection after entire reply has been sent. */
