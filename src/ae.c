@@ -377,23 +377,30 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
      * events to be processed ASAP when this happens: the idea is that
      * processing events earlier is less dangerous than delaying them
      * indefinitely, and practice suggests it is. */
+    // 当前时间小于最后一次执行时间, 说明系统时间被调小了
     if (now < eventLoop->lastTime) {
         te = eventLoop->timeEventHead;
+        // 循环时间事件链表
         while(te) {
+            // 将触发时间设置为0, 一定执行
             te->when_sec = 0;
             te = te->next;
         }
     }
+    // 设置最后一次执行时间为当前时间
     eventLoop->lastTime = now;
 
     te = eventLoop->timeEventHead;
+    // 获得最大id
     maxId = eventLoop->timeEventNextId-1;
     while(te) {
         long now_sec, now_ms;
         long long id;
 
         /* Remove events scheduled for deletion. */
+        // 时间事件id等于删除的id
         if (te->id == AE_DELETED_EVENT_ID) {
+            // 删除链表中的节点
             aeTimeEvent *next = te->next;
             if (te->prev)
                 te->prev->next = te->next;
@@ -401,8 +408,10 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
                 eventLoop->timeEventHead = te->next;
             if (te->next)
                 te->next->prev = te->prev;
+            // 如果设置了finalizeProc, 则执行
             if (te->finalizerProc)
                 te->finalizerProc(eventLoop, te->clientData);
+            // 释放节点
             zfree(te);
             te = next;
             continue;
@@ -413,27 +422,37 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
          * add new timers on the head, however if we change the implementation
          * detail, this check may be useful again: we keep it here for future
          * defense. */
+        // 时间事件id大于链表最大id, 当前时间事件是最新的事件, 则本次循环不处理
         if (te->id > maxId) {
             te = te->next;
             continue;
         }
+        // 获取当前时间
         aeGetTime(&now_sec, &now_ms);
+        // 当前的时间大于触发的秒或者当前时间的秒等于触发的秒并且当前时间的毫秒大于触发的毫秒
         if (now_sec > te->when_sec ||
             (now_sec == te->when_sec && now_ms >= te->when_ms))
         {
             int retval;
 
             id = te->id;
+            // 触发时间事件回调函数
             retval = te->timeProc(eventLoop, id, te->clientData);
+            // 计数+1
             processed++;
+            // 执行多次
             if (retval != AE_NOMORE) {
+                // 设置下一次触发时间
                 aeAddMillisecondsToNow(retval,&te->when_sec,&te->when_ms);
             } else {
+                // 执行一次, id设置为deleted, 下次执行删除该id
                 te->id = AE_DELETED_EVENT_ID;
             }
         }
+        // 指向下一个节点
         te = te->next;
     }
+    // 返回执行次数
     return processed;
 }
 
