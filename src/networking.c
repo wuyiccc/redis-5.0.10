@@ -83,6 +83,7 @@ void linkClient(client *c) {
     raxInsert(server.clients_index,(unsigned char*)&id,sizeof(id),c,NULL);
 }
 
+// 创建client
 client *createClient(int fd) {
     client *c = zmalloc(sizeof(client));
 
@@ -90,11 +91,15 @@ client *createClient(int fd) {
      * This is useful since all the commands needs to be executed
      * in the context of a client. When commands are executed in other
      * contexts (for instance a Lua script) we need a non connected client. */
+    // fd有效, 不是伪客户端
     if (fd != -1) {
+        // fd设置为非阻塞
         anetNonBlock(NULL,fd);
+        // tcp设置为非延迟
         anetEnableTcpNoDelay(NULL,fd);
         if (server.tcpkeepalive)
             anetKeepAlive(NULL,fd,server.tcpkeepalive);
+        // 创建文件事件, 绑定读事件到el
         if (aeCreateFileEvent(server.el,fd,AE_READABLE,
             readQueryFromClient, c) == AE_ERR)
         {
@@ -107,6 +112,7 @@ client *createClient(int fd) {
     selectDb(c,0);
     uint64_t client_id;
     atomicGetIncr(server.next_client_id,client_id,1);
+    // 初始化client属性
     c->id = client_id;
     c->fd = fd;
     c->name = NULL;
@@ -157,6 +163,7 @@ client *createClient(int fd) {
     listSetFreeMethod(c->pubsub_patterns,decrRefCountVoid);
     listSetMatchMethod(c->pubsub_patterns,listMatchObjects);
     if (fd != -1) linkClient(c);
+    // 初始化事务状态
     initClientMultiState(c);
     return c;
 }
@@ -662,8 +669,15 @@ int clientHasPendingReplies(client *c) {
 }
 
 #define MAX_ACCEPTS_PER_CALL 1000
+/**
+ * 创建client
+ * @param fd
+ * @param flags
+ * @param ip
+ */
 static void acceptCommonHandler(int fd, int flags, char *ip) {
     client *c;
+    // 创建client
     if ((c = createClient(fd)) == NULL) {
         serverLog(LL_WARNING,
             "Error registering fd event for the new client: %s (fd=%d)",
@@ -675,6 +689,8 @@ static void acceptCommonHandler(int fd, int flags, char *ip) {
      * connection. Note that we create the client instead to check before
      * for this condition, since now the socket is already set in non-blocking
      * mode and we can send an error for free using the Kernel I/O */
+    // 创建client成功
+    // server的client数大于最大client数
     if (listLength(server.clients) > server.maxclients) {
         char *err = "-ERR max number of clients reached\r\n";
 
@@ -682,7 +698,9 @@ static void acceptCommonHandler(int fd, int flags, char *ip) {
         if (write(c->fd,err,strlen(err)) == -1) {
             /* Nothing to do, Just to avoid the warning... */
         }
+        // 拒绝连接数+1
         server.stat_rejected_conn++;
+        // 释放当前client
         freeClient(c);
         return;
     }
@@ -691,12 +709,14 @@ static void acceptCommonHandler(int fd, int flags, char *ip) {
      * is no password set, nor a specific interface is bound, we don't accept
      * requests from non loopback interfaces. Instead we try to explain the
      * user what to do to fix it if needed. */
+    // 服务器是保护模式, 并且没有绑定ip并且没有密码
     if (server.protected_mode &&
         server.bindaddr_count == 0 &&
         server.requirepass == NULL &&
         !(flags & CLIENT_UNIX_SOCKET) &&
         ip != NULL)
     {
+        // 如果是本级, 那么拒绝连接
         if (strcmp(ip,"127.0.0.1") && strcmp(ip,"::1")) {
             char *err =
                 "-DENIED Redis is running in protected mode because protected "
@@ -728,19 +748,33 @@ static void acceptCommonHandler(int fd, int flags, char *ip) {
         }
     }
 
+    // 连接数+1
     server.stat_numconnections++;
+    // 更新标志
     c->flags |= flags;
 }
 
+/**
+ * 连接应答回调函数
+ * el: 事件循环
+ * fd: socket的fd
+ * privdata: 私有数据
+ * mask: 标志
+ */
 void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
+    // client端口 max一次处理1000个连接
     int cport, cfd, max = MAX_ACCEPTS_PER_CALL;
     char cip[NET_IP_STR_LEN];
+    // 参数不使用, 是为了和其他的回调函数兼容, 与声明保持一致
     UNUSED(el);
     UNUSED(mask);
     UNUSED(privdata);
 
+    // 循环
     while(max--) {
+        // 接收连接
         cfd = anetTcpAccept(server.neterr, fd, cip, sizeof(cip), &cport);
+        // 连接失败 fd=-1
         if (cfd == ANET_ERR) {
             if (errno != EWOULDBLOCK)
                 serverLog(LL_WARNING,
@@ -748,6 +782,7 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
             return;
         }
         serverLog(LL_VERBOSE,"Accepted %s:%d", cip, cport);
+        // 连接成功 创建client
         acceptCommonHandler(cfd,0,cip);
     }
 }

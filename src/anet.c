@@ -547,9 +547,12 @@ int anetUnixServer(char *err, char *path, mode_t perm, int backlog)
     return s;
 }
 
+// 内部函数
+// 接收请求
 static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len) {
     int fd;
     while(1) {
+        // 调用socket的accept
         fd = accept(s,sa,len);
         if (fd == -1) {
             if (errno == EINTR)
@@ -561,20 +564,34 @@ static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *l
         }
         break;
     }
+    // 连接后返回fd
     return fd;
 }
 
+/**
+ * 接收连接
+ * @param err 错误
+ * @param s
+ * @param ip client的ip
+ * @param ip_len ip长度
+ * @param port 端口
+ * @return
+ */
 int anetTcpAccept(char *err, int s, char *ip, size_t ip_len, int *port) {
     int fd;
+    // socket内部结构
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
     if ((fd = anetGenericAccept(err,s,(struct sockaddr*)&sa,&salen)) == -1)
         return ANET_ERR;
 
+    // 连接成功 ipv4
     if (sa.ss_family == AF_INET) {
+        // 记录client的ip和端口
         struct sockaddr_in *s = (struct sockaddr_in *)&sa;
         if (ip) inet_ntop(AF_INET,(void*)&(s->sin_addr),ip,ip_len);
         if (port) *port = ntohs(s->sin_port);
+        // ipv6
     } else {
         struct sockaddr_in6 *s = (struct sockaddr_in6 *)&sa;
         if (ip) inet_ntop(AF_INET6,(void*)&(s->sin6_addr),ip,ip_len);
