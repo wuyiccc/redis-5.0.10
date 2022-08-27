@@ -1409,6 +1409,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 /* This function gets called every time Redis is entering the
  * main loop of the event driven library, that is, before to sleep
  * for ready file descriptors. */
+// 阻塞前处理
 void beforeSleep(struct aeEventLoop *eventLoop) {
     UNUSED(eventLoop);
 
@@ -1416,6 +1417,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
      * may change the state of Redis Cluster (from ok to fail or vice versa),
      * so it's a good idea to call it before serving the unblocked clients
      * later in this function. */
+    // 集群有效
     if (server.cluster_enabled) clusterBeforeSleep();
 
     /* Run a fast expire cycle (the called function will return
@@ -1426,13 +1428,17 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
 
     /* Send all the slaves an ACK request if at least one client blocked
      * during the previous event loop iteration. */
+    // 要求主从应答
     if (server.get_ack_from_slaves) {
         robj *argv[3];
 
+        // 参数列表
         argv[0] = createStringObject("REPLCONF",8);
         argv[1] = createStringObject("GETACK",6);
         argv[2] = createStringObject("*",1); /* Not used argument. */
+        // 给slave发送请求
         replicationFeedSlaves(server.slaves, server.slaveseldb, argv, 3);
+        // 释放参数列表
         decrRefCount(argv[0]);
         decrRefCount(argv[1]);
         decrRefCount(argv[2]);
@@ -1441,7 +1447,9 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
 
     /* Unblock all the clients blocked for synchronous replication
      * in WAIT. */
+    // client在wait
     if (listLength(server.clients_waiting_acks))
+        // 解除阻塞的client
         processClientsWaitingReplicas();
 
     /* Check if there are clients unblocked by modules that implement
@@ -1449,6 +1457,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
     moduleHandleBlockedClients();
 
     /* Try to process pending commands for clients that were just unblocked. */
+    // 未阻塞client
     if (listLength(server.unblocked_clients))
         processUnblockedClients();
 
@@ -1462,6 +1471,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
     /* Before we are going to sleep, let the threads access the dataset by
      * releasing the GIL. Redis main thread will not touch anything at this
      * time. */
+    // 释放gil锁
     if (moduleCount()) moduleReleaseGIL();
 }
 
@@ -1470,6 +1480,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
  * the different events callbacks. */
 void afterSleep(struct aeEventLoop *eventLoop) {
     UNUSED(eventLoop);
+    // 加gil锁, wait后需要只有主线程运行
     if (moduleCount()) moduleAcquireGIL();
 }
 
