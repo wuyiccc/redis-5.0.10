@@ -221,32 +221,59 @@ static void aeGetTime(long *seconds, long *milliseconds)
     *milliseconds = tv.tv_usec/1000;
 }
 
+/**
+ * 设置处理事件的时间
+ * @param milliseconds 时间
+ * @param sec 返回秒
+ * @param ms  返回毫秒
+ */
 static void aeAddMillisecondsToNow(long long milliseconds, long *sec, long *ms) {
     long cur_sec, cur_ms, when_sec, when_ms;
 
+    // 获得当前的秒和毫秒
     aeGetTime(&cur_sec, &cur_ms);
+    // 当前的秒+时间间隔(s)
     when_sec = cur_sec + milliseconds/1000;
+    // 当前的毫秒+时间间隔(ms)
     when_ms = cur_ms + milliseconds%1000;
+    // 毫秒>1000
     if (when_ms >= 1000) {
+        // 秒+1
         when_sec ++;
+        // 毫秒-1000
         when_ms -= 1000;
     }
+    // 返回执行时间
     *sec = when_sec;
     *ms = when_ms;
 }
 
+/**
+ * 创建时间事件
+ * @param eventLoop
+ * @param milliseconds 时间间隔
+ * @param proc 时间事件回调函数 serverCron
+ * @param clientData 客户端数据
+ * @param finalizerProc 删除事件时回调函数
+ * @return
+ */
 long long aeCreateTimeEvent(aeEventLoop *eventLoop, long long milliseconds,
         aeTimeProc *proc, void *clientData,
         aeEventFinalizerProc *finalizerProc)
 {
+    // 时间事件下一个id+1
     long long id = eventLoop->timeEventNextId++;
     aeTimeEvent *te;
 
+    // 申请内存
     te = zmalloc(sizeof(*te));
     if (te == NULL) return AE_ERR;
+    // 设置id
     te->id = id;
+    // 设置处理事件的时间
     aeAddMillisecondsToNow(milliseconds,&te->when_sec,&te->when_ms);
     te->timeProc = proc;
+    // 删除事件回调函数
     te->finalizerProc = finalizerProc;
     te->clientData = clientData;
     te->prev = NULL;
