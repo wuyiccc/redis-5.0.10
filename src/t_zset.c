@@ -1070,16 +1070,20 @@ unsigned char *zzlFind(unsigned char *zl, sds ele, double *score) {
     unsigned char *eptr = ziplistIndex(zl,0), *sptr;
 
     while (eptr != NULL) {
+        // 找下一个
         sptr = ziplistNext(zl,eptr);
         serverAssert(sptr != NULL);
 
+        // 元素与指定元素相同
         if (ziplistCompare(eptr,(unsigned char*)ele,sdslen(ele))) {
             /* Matching element, pull out score. */
+            // 获得分值
             if (score != NULL) *score = zzlGetScore(sptr);
             return eptr;
         }
 
         /* Move to next element. */
+        // 下一个
         eptr = ziplistNext(zl,sptr);
     }
     return NULL;
@@ -1343,14 +1347,19 @@ void zsetConvertToZiplistIfNeeded(robj *zobj, size_t maxelelen) {
  * otherwise C_OK is returned and *score is correctly populated.
  * If 'zobj' or 'member' is NULL, C_ERR is returned. */
 int zsetScore(robj *zobj, sds member, double *score) {
+    // 值对象为空 或元素为空 则返回
     if (!zobj || !member) return C_ERR;
 
+    // 编码是ziplist
     if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
         if (zzlFind(zobj->ptr, member, score) == NULL) return C_ERR;
+        // 编码是skiplist
     } else if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
         zset *zs = zobj->ptr;
+        // 在zset的dict中查找member对应的节点
         dictEntry *de = dictFind(zs->dict, member);
         if (de == NULL) return C_ERR;
+        // 有节点则获取节点的值
         *score = *(double*)dictGetVal(de);
     } else {
         serverPanic("Unknown sorted set encoding");
@@ -3281,16 +3290,21 @@ void zcardCommand(client *c) {
 }
 
 void zscoreCommand(client *c) {
+    // 获得参数key
     robj *key = c->argv[1];
     robj *zobj;
     double score;
 
+    // 在db中查找key对应的值对象 值对象为空或类型不是zset 则返回
     if ((zobj = lookupKeyReadOrReply(c,key,shared.nullbulk)) == NULL ||
         checkType(c,zobj,OBJ_ZSET)) return;
 
+    // 获得元素的分值 是-1
     if (zsetScore(zobj,c->argv[2]->ptr,&score) == C_ERR) {
+        // 响应空
         addReply(c,shared.nullbulk);
     } else {
+        // 响应分值
         addReplyDouble(c,score);
     }
 }
