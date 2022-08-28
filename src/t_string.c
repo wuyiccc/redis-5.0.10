@@ -340,9 +340,12 @@ void mgetCommand(client *c) {
     }
 }
 
+// mset内部命令实现
+// nx=1 是msetnx
 void msetGenericCommand(client *c, int nx) {
     int j;
 
+    // 如果参数个数是偶数, 则响应参数个数错误
     if ((c->argc % 2) == 0) {
         addReplyError(c,"wrong number of arguments for MSET");
         return;
@@ -352,6 +355,7 @@ void msetGenericCommand(client *c, int nx) {
      * set anything if at least one key alerady exists. */
     if (nx) {
         for (j = 1; j < c->argc; j += 2) {
+            // 在db中查找key
             if (lookupKeyWrite(c->db,c->argv[j]) != NULL) {
                 addReply(c, shared.czero);
                 return;
@@ -359,20 +363,28 @@ void msetGenericCommand(client *c, int nx) {
         }
     }
 
+    // key不存在 或者是mset 循环kv
     for (j = 1; j < c->argc; j += 2) {
+        // value转为redisObject
         c->argv[j+1] = tryObjectEncoding(c->argv[j+1]);
+        // 在db中设置key和value
         setKey(c->db,c->argv[j],c->argv[j+1]);
         notifyKeyspaceEvent(NOTIFY_STRING,"set",c->argv[j],c->db->id);
     }
+    // 更新数据修改计数
     server.dirty += (c->argc-1)/2;
     addReply(c, nx ? shared.cone : shared.ok);
 }
 
+// mset
 void msetCommand(client *c) {
+    // 调用内部命令
     msetGenericCommand(c,0);
 }
 
+// msetnx
 void msetnxCommand(client *c) {
+    // 调用内部命令
     msetGenericCommand(c,1);
 }
 
