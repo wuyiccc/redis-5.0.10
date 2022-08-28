@@ -608,6 +608,7 @@ static int zslParseRange(robj *min, robj *max, zrangespec *spec) {
     }
     if (max->encoding == OBJ_ENCODING_INT) {
         spec->max = (long)max->ptr;
+        // 不包含
     } else {
         if (((char*)max->ptr)[0] == '(') {
             spec->max = strtod((char*)max->ptr+1,&eptr);
@@ -2868,19 +2869,24 @@ void zrevrangebyscoreCommand(client *c) {
     genericZrangebyscoreCommand(c,1);
 }
 
+// zcount key min max
 void zcountCommand(client *c) {
+    // 获得参数key
     robj *key = c->argv[1];
     robj *zobj;
+    // range结构体
     zrangespec range;
     unsigned long count = 0;
 
     /* Parse the range arguments */
+    // 解析min max 以及是否包含 写入range结构体中
     if (zslParseRange(c->argv[2],c->argv[3],&range) != C_OK) {
         addReplyError(c,"min or max is not a float");
         return;
     }
 
     /* Lookup the sorted set */
+    // 在db中查找key对应的值对象
     if ((zobj = lookupKeyReadOrReply(c, key, shared.czero)) == NULL ||
         checkType(c, zobj, OBJ_ZSET)) return;
 
@@ -2890,6 +2896,7 @@ void zcountCommand(client *c) {
         double score;
 
         /* Use the first element in range as the starting point */
+        // 获得范围内的第一个元素
         eptr = zzlFirstInRange(zl,&range);
 
         /* No "first" element */
@@ -2899,22 +2906,30 @@ void zcountCommand(client *c) {
         }
 
         /* First element is in range */
+        // 获得元素分值
         sptr = ziplistNext(zl,eptr);
         score = zzlGetScore(sptr);
         serverAssertWithInfo(c,zobj,zslValueLteMax(score,&range));
 
         /* Iterate over elements in range */
+        // 迭代ziplist
         while (eptr) {
+            // 获得元素分值
             score = zzlGetScore(sptr);
 
             /* Abort when the node is no longer in range. */
+            // 超过范围
             if (!zslValueLteMax(score,&range)) {
+                // 跳出循环
                 break;
             } else {
+                // 累加count
                 count++;
+                // 找下一个元素
                 zzlNext(zl,&eptr,&sptr);
             }
         }
+        // 编码是skiplist
     } else if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
         zset *zs = zobj->ptr;
         zskiplist *zsl = zs->zsl;
@@ -2922,19 +2937,25 @@ void zcountCommand(client *c) {
         unsigned long rank;
 
         /* Find first element in range */
+        // 找范围内的第一个节点
         zn = zslFirstInRange(zsl, &range);
 
         /* Use rank of first element, if any, to determine preliminary count */
         if (zn != NULL) {
+            // 根据分值获取排名
             rank = zslGetRank(zsl, zn->score, zn->ele);
+            // 计算count
             count = (zsl->length - (rank - 1));
 
             /* Find last element in range */
+            // 获得范围内最后一个节点
             zn = zslLastInRange(zsl, &range);
 
             /* Use rank of last element, if any, to determine the actual count */
             if (zn != NULL) {
+                // 根据score获得排名
                 rank = zslGetRank(zsl, zn->score, zn->ele);
+                // 计算count count=count-count2
                 count -= (zsl->length - rank);
             }
         }
@@ -2942,6 +2963,7 @@ void zcountCommand(client *c) {
         serverPanic("Unknown sorted set encoding");
     }
 
+    // 响应count
     addReplyLongLong(c, count);
 }
 
