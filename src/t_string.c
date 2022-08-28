@@ -206,10 +206,15 @@ void getCommand(client *c) {
 }
 
 void getsetCommand(client *c) {
+    // 响应值对象错误
     if (getGenericCommand(c) == C_ERR) return;
+    // 将value转为值对象
     c->argv[2] = tryObjectEncoding(c->argv[2]);
+    // 设置key的值对象
     setKey(c->db,c->argv[1],c->argv[2]);
+    // 键空间通知
     notifyKeyspaceEvent(NOTIFY_STRING,"set",c->argv[1],c->db->id);
+    // 更新计数
     server.dirty++;
 }
 
