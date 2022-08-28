@@ -1524,19 +1524,26 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
 
 /* Delete the element 'ele' from the sorted set, returning 1 if the element
  * existed and was deleted, 0 otherwise (the element was not there). */
+// 删除元素
 int zsetDel(robj *zobj, sds ele) {
+    // 编码是ziplist
     if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
         unsigned char *eptr;
 
+        // 在ziplist中找元素 找到了
         if ((eptr = zzlFind(zobj->ptr,ele,NULL)) != NULL) {
+            // 删除元素
             zobj->ptr = zzlDelete(zobj->ptr,eptr);
             return 1;
         }
+        // 编码是skiplist
     } else if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
+        // 获得zset
         zset *zs = zobj->ptr;
         dictEntry *de;
         double score;
 
+        // 在字典中移除key 返回节点
         de = dictUnlink(zs->dict,ele);
         if (de != NULL) {
             /* Get the score in order to delete from the skiplist later. */
@@ -1553,6 +1560,7 @@ int zsetDel(robj *zobj, sds ele) {
             int retval = zslDelete(zs->zsl,score,ele,NULL);
             serverAssert(retval);
 
+            // 字典需要resize
             if (htNeedsResize(zs->dict)) dictResize(zs->dict);
             return 1;
         }
@@ -1792,14 +1800,18 @@ void zincrbyCommand(client *c) {
 }
 
 void zremCommand(client *c) {
+    // 获得key
     robj *key = c->argv[1];
     robj *zobj;
     int deleted = 0, keyremoved = 0, j;
 
+    // 从db中获得key对应的值对象, 如果是空或者不是空但类型不是zset, 则返回
     if ((zobj = lookupKeyWriteOrReply(c,key,shared.czero)) == NULL ||
         checkType(c,zobj,OBJ_ZSET)) return;
 
+    // 参数循环
     for (j = 2; j < c->argc; j++) {
+        // 删除成功 删除标识+1
         if (zsetDel(zobj,c->argv[j]->ptr)) deleted++;
         if (zsetLength(zobj) == 0) {
             dbDelete(c->db,key);
@@ -1808,8 +1820,11 @@ void zremCommand(client *c) {
         }
     }
 
+    // 删除成功
     if (deleted) {
+        // 发送键空间通知
         notifyKeyspaceEvent(NOTIFY_ZSET,"zrem",key,c->db->id);
+        // 删除db的kv
         if (keyremoved)
             notifyKeyspaceEvent(NOTIFY_GENERIC,"del",key,c->db->id);
         signalModifiedKey(c->db,key);
