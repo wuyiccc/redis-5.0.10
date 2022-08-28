@@ -524,12 +524,16 @@ void addReplyLongLongWithPrefix(client *c, long long ll, char prefix) {
     addReplyString(c,buf,len+3);
 }
 
+// 响应长度
 void addReplyLongLong(client *c, long long ll) {
     if (ll == 0)
+        // 响应0
         addReply(c,shared.czero);
     else if (ll == 1)
+        // 响应1
         addReply(c,shared.cone);
     else
+        // 响应其他的数
         addReplyLongLongWithPrefix(c,ll,':');
 }
 

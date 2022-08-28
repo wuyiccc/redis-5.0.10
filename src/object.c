@@ -610,11 +610,14 @@ int equalStringObjects(robj *a, robj *b) {
     }
 }
 
+// 计算值对象的长度
 size_t stringObjectLen(robj *o) {
     serverAssertWithInfo(NULL,o,o->type == OBJ_STRING);
     if (sdsEncodedObject(o)) {
+        // 获得字符串的长度
         return sdslen(o->ptr);
     } else {
+        // 计算整数的长度
         return sdigits10((long)o->ptr);
     }
 }

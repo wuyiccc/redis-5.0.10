@@ -590,9 +590,13 @@ void appendCommand(client *c) {
     addReplyLongLong(c,totlen);
 }
 
+// strlen key
 void strlenCommand(client *c) {
     robj *o;
+    // 在db中, 查找key对应的值对象, 如果没有则响应0
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.czero)) == NULL ||
+        // 类型不是字符串 则返回
         checkType(c,o,OBJ_STRING)) return;
+    // 响应长度
     addReplyLongLong(c,stringObjectLen(o));
 }
