@@ -2601,7 +2601,9 @@ void zinterstoreCommand(client *c) {
     zunionInterGenericCommand(c,c->argv[1], SET_OP_INTER);
 }
 
+// reverse = 1 从大到小
 void zrangeGenericCommand(client *c, int reverse) {
+    // 获得参数key
     robj *key = c->argv[1];
     robj *zobj;
     int withscores = 0;
@@ -2610,9 +2612,11 @@ void zrangeGenericCommand(client *c, int reverse) {
     long llen;
     long rangelen;
 
+    // 获取start和end 并转long
     if ((getLongFromObjectOrReply(c, c->argv[2], &start, NULL) != C_OK) ||
         (getLongFromObjectOrReply(c, c->argv[3], &end, NULL) != C_OK)) return;
 
+    // 参数是5 并且由withscores
     if (c->argc == 5 && !strcasecmp(c->argv[4]->ptr,"withscores")) {
         withscores = 1;
     } else if (c->argc >= 5) {
@@ -2620,10 +2624,12 @@ void zrangeGenericCommand(client *c, int reverse) {
         return;
     }
 
+    // 在db中根据key 找到对应的值对象 是空 响应空 或者类型不是zset 返回
     if ((zobj = lookupKeyReadOrReply(c,key,shared.emptymultibulk)) == NULL
          || checkType(c,zobj,OBJ_ZSET)) return;
 
     /* Sanitize indexes. */
+    // 获得值对象的长度
     llen = zsetLength(zobj);
     if (start < 0) start = llen+start;
     if (end < 0) end = llen+end;
@@ -2654,17 +2660,22 @@ void zrangeGenericCommand(client *c, int reverse) {
             eptr = ziplistIndex(zl,2*start);
 
         serverAssertWithInfo(c,zobj,eptr != NULL);
+        // 获得元素分值
         sptr = ziplistNext(zl,eptr);
 
+        // 循环范围
         while (rangelen--) {
             serverAssertWithInfo(c,zobj,eptr != NULL && sptr != NULL);
+            // 获得元素的数据
             serverAssertWithInfo(c,zobj,ziplistGet(eptr,&vstr,&vlen,&vlong));
             if (vstr == NULL)
+                // 不是字符串 则响应整数
                 addReplyBulkLongLong(c,vlong);
             else
                 addReplyBulkCBuffer(c,vstr,vlen);
 
             if (withscores)
+                // 响应分值
                 addReplyDouble(c,zzlGetScore(sptr));
 
             if (reverse)
@@ -2681,20 +2692,25 @@ void zrangeGenericCommand(client *c, int reverse) {
 
         /* Check if starting point is trivial, before doing log(N) lookup. */
         if (reverse) {
+            // 获得尾结点
             ln = zsl->tail;
             if (start > 0)
+                // 根据rank 获得元素
                 ln = zslGetElementByRank(zsl,llen-start);
         } else {
+            // 获得投的底层的下一个元素
             ln = zsl->header->level[0].forward;
             if (start > 0)
                 ln = zslGetElementByRank(zsl,start+1);
         }
 
+        // 循环范围
         while(rangelen--) {
             serverAssertWithInfo(c,zobj,ln != NULL);
             ele = ln->ele;
             addReplyBulkCBuffer(c,ele,sdslen(ele));
             if (withscores)
+                // 响应分值
                 addReplyDouble(c,ln->score);
             ln = reverse ? ln->backward : ln->level[0].forward;
         }
