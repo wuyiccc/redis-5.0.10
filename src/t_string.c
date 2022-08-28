@@ -213,32 +213,42 @@ void getsetCommand(client *c) {
     server.dirty++;
 }
 
+// setrange key offset value
 void setrangeCommand(client *c) {
     robj *o;
     long offset;
+    // 获得value
     sds value = c->argv[3]->ptr;
 
+    // 获得offset参数, 获得参数的值
     if (getLongFromObjectOrReply(c,c->argv[2],&offset,NULL) != C_OK)
         return;
 
+    // offset < 0 返回
     if (offset < 0) {
         addReplyError(c,"offset is out of range");
         return;
     }
 
+    // 获得key对应的值对象
     o = lookupKeyWrite(c->db,c->argv[1]);
+    // 值对象为空 kv不存在
     if (o == NULL) {
         /* Return 0 when setting nothing on a non-existing string */
         if (sdslen(value) == 0) {
+            // 响应0
             addReply(c,shared.czero);
             return;
         }
 
         /* Return when the resulting string exceeds allowed size */
+        // value长度+offset>512m 返回
         if (checkStringLength(c,offset+sdslen(value)) != C_OK)
             return;
 
+        // 创建空对象
         o = createObject(OBJ_STRING,sdsnewlen(NULL, offset+sdslen(value)));
+        // kv添加到db中
         dbAdd(c->db,c->argv[1],o);
     } else {
         size_t olen;
@@ -250,6 +260,7 @@ void setrangeCommand(client *c) {
         /* Return existing string length when setting nothing */
         olen = stringObjectLen(o);
         if (sdslen(value) == 0) {
+            // 返回原字符串的长度
             addReplyLongLong(c,olen);
             return;
         }
@@ -259,17 +270,21 @@ void setrangeCommand(client *c) {
             return;
 
         /* Create a copy when the object is shared or encoded. */
+        // 解除key的共享
         o = dbUnshareStringValue(c->db,c->argv[1],o);
     }
 
     if (sdslen(value) > 0) {
+        // 扩容或返回原来的sds
         o->ptr = sdsgrowzero(o->ptr,offset+sdslen(value));
+        // 将value拷贝到字符串的offset位 覆盖value长度
         memcpy((char*)o->ptr+offset,value,sdslen(value));
         signalModifiedKey(c->db,c->argv[1]);
         notifyKeyspaceEvent(NOTIFY_STRING,
             "setrange",c->argv[1],c->db->id);
         server.dirty++;
     }
+    // 响应新的sds的长度
     addReplyLongLong(c,sdslen(o->ptr));
 }
 
