@@ -1598,6 +1598,7 @@ long zsetRank(robj *zobj, sds ele, int reverse) {
  *----------------------------------------------------------------------------*/
 
 /* This generic command implements both ZADD and ZINCRBY. */
+// 实现添加
 void zaddGenericCommand(client *c, int flags) {
     static char *nanerr = "resulting score is not a number (NaN)";
     robj *key = c->argv[1];
@@ -1616,12 +1617,18 @@ void zaddGenericCommand(client *c, int flags) {
 
     /* Parse options. At the end 'scoreidx' is set to the argument position
      * of the score of the first score-element pair. */
+    // 从第三个参数开始
     scoreidx = 2;
+    // 循环参数
     while(scoreidx < c->argc) {
         char *opt = c->argv[scoreidx]->ptr;
+        // 标识为只添加
         if (!strcasecmp(opt,"nx")) flags |= ZADD_NX;
+        // 标识为只修改
         else if (!strcasecmp(opt,"xx")) flags |= ZADD_XX;
+        // 标识为返回已更新元素数
         else if (!strcasecmp(opt,"ch")) flags |= ZADD_CH;
+        // 标识为指定元素增加指定分值
         else if (!strcasecmp(opt,"incr")) flags |= ZADD_INCR;
         else break;
         scoreidx++;
@@ -1635,14 +1642,18 @@ void zaddGenericCommand(client *c, int flags) {
 
     /* After the options, we expect to have an even number of args, since
      * we expect any number of score-element pairs. */
+    // 剩余元素
     elements = c->argc-scoreidx;
+    // 不能被2整除或者是0
     if (elements % 2 || !elements) {
         addReply(c,shared.syntaxerr);
         return;
     }
+    // 参数除以2
     elements /= 2; /* Now this holds the number of score-element pairs. */
 
     /* Check for incompatible options. */
+    // nx和xx并存 返回
     if (nx && xx) {
         addReplyError(c,
             "XX and NX options at the same time are not compatible");
@@ -1658,47 +1669,64 @@ void zaddGenericCommand(client *c, int flags) {
     /* Start parsing all the scores, we need to emit any syntax error
      * before executing additions to the sorted set, as the command should
      * either execute fully or nothing at all. */
+    // 申请score数组的空间
     scores = zmalloc(sizeof(double)*elements);
+    // 给scores数组赋值(score参数)
     for (j = 0; j < elements; j++) {
         if (getDoubleFromObjectOrReply(c,c->argv[scoreidx+j*2],&scores[j],NULL)
             != C_OK) goto cleanup;
     }
 
     /* Lookup the key and create the sorted set if does not exist. */
+    // 从db中查找key对应的值对象
     zobj = lookupKeyWrite(c->db,key);
+    // 值对象不存在
     if (zobj == NULL) {
+        // 是修改 不操作
         if (xx) goto reply_to_client; /* No key + XX option: nothing to do. */
+        // 设置的最大ziplist节点是0(128) 或者 第一个ele大小>64
         if (server.zset_max_ziplist_entries == 0 ||
             server.zset_max_ziplist_value < sdslen(c->argv[scoreidx+1]->ptr))
         {
+            // 创建dict+skiplist
             zobj = createZsetObject();
         } else {
+            // 创建ziplist
             zobj = createZsetZiplistObject();
         }
+        // 在db中添加kv
         dbAdd(c->db,key,zobj);
     } else {
+        // 如果值对象存在, 类型不是zset
         if (zobj->type != OBJ_ZSET) {
             addReply(c,shared.wrongtypeerr);
             goto cleanup;
         }
     }
 
+    // 添加或修改
     for (j = 0; j < elements; j++) {
         double newscore;
         score = scores[j];
         int retflags = flags;
 
         ele = c->argv[scoreidx+1+j*2]->ptr;
+        // 调用zsetAdd进行添加或修改
         int retval = zsetAdd(zobj, score, ele, &retflags, &newscore);
         if (retval == 0) {
             addReplyError(c,nanerr);
             goto cleanup;
         }
+        // 是add 则add+1
         if (retflags & ZADD_ADDED) added++;
+        // update++
         if (retflags & ZADD_UPDATED) updated++;
+        // processed++
         if (!(retflags & ZADD_NOP)) processed++;
+        // 修改的分值覆盖传入的分值
         score = newscore;
     }
+    // 修改数据计数累加
     server.dirty += (added+updated);
 
 reply_to_client:
