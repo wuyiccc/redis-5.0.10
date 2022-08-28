@@ -404,39 +404,55 @@ void msetnxCommand(client *c) {
     msetGenericCommand(c,1);
 }
 
+// incr key
+// decr key
+// incrby key incr
+// decrby key decr
 void incrDecrCommand(client *c, long long incr) {
     long long value, oldvalue;
     robj *o, *new;
 
+    // 在db中获得对应的值对象
     o = lookupKeyWrite(c->db,c->argv[1]);
+    // 值对象存在并且类型不是字符串 返回
     if (o != NULL && checkType(c,o,OBJ_STRING)) return;
+    // 获得值对象中的整数值, 不是整数 则返回
     if (getLongLongFromObjectOrReply(c,o,&value,NULL) != C_OK) return;
 
+    // 旧的值
     oldvalue = value;
+    // 不在区间内 min和max之间
     if ((incr < 0 && oldvalue < 0 && incr < (LLONG_MIN-oldvalue)) ||
         (incr > 0 && oldvalue > 0 && incr > (LLONG_MAX-oldvalue))) {
         addReplyError(c,"increment or decrement would overflow");
         return;
     }
+    // 值自增
     value += incr;
 
+    // 值对象存在并且引用为1, 并且编码是int 并且在区间中
     if (o && o->refcount == 1 && o->encoding == OBJ_ENCODING_INT &&
         (value < 0 || value >= OBJ_SHARED_INTEGERS) &&
         value >= LONG_MIN && value <= LONG_MAX)
     {
+        // 把value赋给对象
         new = o;
         o->ptr = (void*)((long)value);
     } else {
+        // 创建新的值对象
         new = createStringObjectFromLongLongForValue(value);
+        // 值对象存在 覆盖原值对象
         if (o) {
             dbOverwrite(c->db,c->argv[1],new);
         } else {
             dbAdd(c->db,c->argv[1],new);
         }
     }
+    // 修改键信号
     signalModifiedKey(c->db,c->argv[1]);
     notifyKeyspaceEvent(NOTIFY_STRING,"incrby",c->argv[1],c->db->id);
     server.dirty++;
+    // 应答
     addReply(c,shared.colon);
     addReply(c,new);
     addReply(c,shared.crlf);
@@ -453,10 +469,12 @@ void decrCommand(client *c) {
 void incrbyCommand(client *c) {
     long long incr;
 
+    // 获得incr参数的整数值 incr 不是整数 则返回
     if (getLongLongFromObjectOrReply(c, c->argv[2], &incr, NULL) != C_OK) return;
     incrDecrCommand(c,incr);
 }
 
+// decrby key decr
 void decrbyCommand(client *c) {
     long long incr;
 
