@@ -1380,6 +1380,11 @@ int zsetScore(robj *zobj, sds member, double *score) {
  *
  * The function does not take ownership of the 'ele' SDS string, but copies
  * it if needed. */
+// 添加或修改
+// zobj: 值对象
+// ele: 元素 member
+// flag： 标识
+// newscore: 新的分值
 int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
     /* Turn options into simple to check vars. */
     int incr = (*flags & ZADD_INCR) != 0;
@@ -1389,25 +1394,33 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
     double curscore;
 
     /* NaN as input is an error regardless of all the other parameters. */
+    // score空
     if (isnan(score)) {
         *flags = ZADD_NAN;
         return 0;
     }
 
     /* Update the sorted set according to its encoding. */
+    // 编码是ziplist
     if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
         unsigned char *eptr;
 
+        // 在ziplist中查找ele 返回curscore
         if ((eptr = zzlFind(zobj->ptr,ele,&curscore)) != NULL) {
             /* NX? Return, same element already exists. */
+            // 如果是新增
             if (nx) {
+                // 不操作 返回
                 *flags |= ZADD_NOP;
                 return 1;
             }
 
             /* Prepare the score for the increment if needed. */
+            // 自增
             if (incr) {
+                // 自增score
                 score += curscore;
+                // score是空, 则返回
                 if (isnan(score)) {
                     *flags |= ZADD_NAN;
                     return 0;
@@ -1416,23 +1429,32 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
             }
 
             /* Remove and re-insert when score changed. */
+            // 改的分值不是当前分值, 那么需要修改
             if (score != curscore) {
+                // 删除节点
                 zobj->ptr = zzlDelete(zobj->ptr,eptr);
+                // 新增新的节点
                 zobj->ptr = zzlInsert(zobj->ptr,ele,score);
+                // 标识为修改updated
                 *flags |= ZADD_UPDATED;
             }
             return 1;
         } else if (!xx) {
+            // 没找到, 新增 不是修改标识
+
             /* Optimize: check if the element is too large or the list
              * becomes too long *before* executing zzlInsert. */
             zobj->ptr = zzlInsert(zobj->ptr,ele,score);
+            // ziplist的长度大于128
             if (zzlLength(zobj->ptr) > server.zset_max_ziplist_entries ||
                 sdslen(ele) > server.zset_max_ziplist_value)
+                // 转为skiplist
                 zsetConvert(zobj,OBJ_ENCODING_SKIPLIST);
             if (newscore) *newscore = score;
             *flags |= ZADD_ADDED;
             return 1;
         } else {
+            // 是xx, 不操作
             *flags |= ZADD_NOP;
             return 1;
         }
@@ -1441,16 +1463,20 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
         zskiplistNode *znode;
         dictEntry *de;
 
+        // 找ele的值对象
         de = dictFind(zs->dict,ele);
         if (de != NULL) {
             /* NX? Return, same element already exists. */
+            // 新增 不操作
             if (nx) {
                 *flags |= ZADD_NOP;
                 return 1;
             }
+            // 获取当前分值
             curscore = *(double*)dictGetVal(de);
 
             /* Prepare the score for the increment if needed. */
+            // 是自增
             if (incr) {
                 score += curscore;
                 if (isnan(score)) {
@@ -1461,22 +1487,31 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
             }
 
             /* Remove and re-insert when score changes. */
+            // 分值变化了
             if (score != curscore) {
+                // skiplist修改元素的分值(先del, 再insert)
                 znode = zslUpdateScore(zs->zsl,curscore,ele,score);
                 /* Note that we did not removed the original element from
                  * the hash table representing the sorted set, so we just
                  * update the score. */
+                // 修改dict的val
                 dictGetVal(de) = &znode->score; /* Update score ptr. */
+                // 标识是修改
                 *flags |= ZADD_UPDATED;
             }
             return 1;
+            // 没找到, 不是修改标识
         } else if (!xx) {
             ele = sdsdup(ele);
+            // 插入skiplist节点
             znode = zslInsert(zs->zsl,score,ele);
+            // dict中添加kv
             serverAssert(dictAdd(zs->dict,ele,&znode->score) == DICT_OK);
+            // 标识为新增
             *flags |= ZADD_ADDED;
             if (newscore) *newscore = score;
             return 1;
+            // 是xx 不操作
         } else {
             *flags |= ZADD_NOP;
             return 1;
