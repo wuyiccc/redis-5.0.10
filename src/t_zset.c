@@ -1103,17 +1103,24 @@ unsigned char *zzlInsertAt(unsigned char *zl, unsigned char *eptr, sds ele, doub
     size_t offset;
 
     scorelen = d2string(scorebuf,sizeof(scorebuf),score);
+    // 元素是空
     if (eptr == NULL) {
+        // 插入ele
         zl = ziplistPush(zl,(unsigned char*)ele,sdslen(ele),ZIPLIST_TAIL);
+        // 插入分值
         zl = ziplistPush(zl,(unsigned char*)scorebuf,scorelen,ZIPLIST_TAIL);
     } else {
+        // 元素不是空
+
         /* Keep offset relative to zl, as it might be re-allocated. */
         offset = eptr-zl;
+        // 在eptr的位置插入ele, 后续元素后移
         zl = ziplistInsert(zl,eptr,(unsigned char*)ele,sdslen(ele));
         eptr = zl+offset;
 
         /* Insert score after the element. */
         serverAssert((sptr = ziplistNext(zl,eptr)) != NULL);
+        // 插入score
         zl = ziplistInsert(zl,sptr,(unsigned char*)scorebuf,scorelen);
     }
     return zl;
@@ -1121,23 +1128,32 @@ unsigned char *zzlInsertAt(unsigned char *zl, unsigned char *eptr, sds ele, doub
 
 /* Insert (element,score) pair in ziplist. This function assumes the element is
  * not yet present in the list. */
+// 插入元素和分值
 unsigned char *zzlInsert(unsigned char *zl, sds ele, double score) {
+    // 找到第一个元素
     unsigned char *eptr = ziplistIndex(zl,0), *sptr;
     double s;
 
     while (eptr != NULL) {
+        // 执行eptr的下一个元素
         sptr = ziplistNext(zl,eptr);
         serverAssert(sptr != NULL);
+        // 获得第一个元素的分值
         s = zzlGetScore(sptr);
 
+        // 如果第一个元素的分值大于要插入的分值
         if (s > score) {
             /* First element with score larger than score for element to be
              * inserted. This means we should take its spot in the list to
              * maintain ordering. */
+            // 按照分值的从小到大的顺序插入 ele1 score1 ele2 score2 (score1<score2)
             zl = zzlInsertAt(zl,eptr,ele,score);
             break;
         } else if (s == score) {
+            // 分值相等
+
             /* Ensure lexicographical ordering for elements. */
+            // 比较ele的字典序
             if (zzlCompareElements(eptr,(unsigned char*)ele,sdslen(ele)) > 0) {
                 zl = zzlInsertAt(zl,eptr,ele,score);
                 break;
@@ -1449,6 +1465,7 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
 
             /* Optimize: check if the element is too large or the list
              * becomes too long *before* executing zzlInsert. */
+            // 插入skiplist节点
             zobj->ptr = zzlInsert(zobj->ptr,ele,score);
             // ziplist的长度大于128
             if (zzlLength(zobj->ptr) > server.zset_max_ziplist_entries ||
@@ -1586,30 +1603,42 @@ int zsetDel(robj *zobj, sds ele) {
  * the one with the lowest score. Otherwise if 'reverse' is non-zero
  * the rank is computed considering as element with rank 0 the one with
  * the highest score. */
+// 获得元素排名
+// zobj: 值对象
+// ele: 指定元素
+// reverse: 是否反向
 long zsetRank(robj *zobj, sds ele, int reverse) {
     unsigned long llen;
     unsigned long rank;
 
+    // 获得长度
     llen = zsetLength(zobj);
 
+    //编码是ziplist
     if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
         unsigned char *zl = zobj->ptr;
         unsigned char *eptr, *sptr;
 
+        // 获得ziplist的第一个元素
         eptr = ziplistIndex(zl,0);
         serverAssert(eptr != NULL);
+        // 获取下一个元素 即分值
         sptr = ziplistNext(zl,eptr);
         serverAssert(sptr != NULL);
 
         rank = 1;
         while(eptr != NULL) {
+            // 如果第一个元素等于指定元素, 跳出循环
             if (ziplistCompare(eptr,(unsigned char*)ele,sdslen(ele)))
                 break;
+            // 否则排名+1
             rank++;
+            // 下一个
             zzlNext(zl,&eptr,&sptr);
         }
 
         if (eptr != NULL) {
+            // 从大到小
             if (reverse)
                 return llen-rank;
             else
@@ -1617,15 +1646,19 @@ long zsetRank(robj *zobj, sds ele, int reverse) {
         } else {
             return -1;
         }
+        // 编码是skiplist
     } else if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
         zset *zs = zobj->ptr;
         zskiplist *zsl = zs->zsl;
         dictEntry *de;
         double score;
 
+        // 在zset的dict中查找在ele的节点
         de = dictFind(zs->dict,ele);
         if (de != NULL) {
+            // 获取节点的score
             score = *(double*)dictGetVal(de);
+            // 根据score获取rank
             rank = zslGetRank(zsl,score,ele);
             /* Existing elements always have a rank. */
             serverAssert(rank != 0);
@@ -3261,18 +3294,22 @@ void zscoreCommand(client *c) {
         addReplyDouble(c,score);
     }
 }
-
+// reverse=0 默认顺序 从小到大
+// reverse=1 从大到小
 void zrankGenericCommand(client *c, int reverse) {
     robj *key = c->argv[1];
     robj *ele = c->argv[2];
     robj *zobj;
     long rank;
 
+    // 找到key对应的值对象 是空 或类型不是zset 则返回
     if ((zobj = lookupKeyReadOrReply(c,key,shared.nullbulk)) == NULL ||
         checkType(c,zobj,OBJ_ZSET)) return;
 
     serverAssertWithInfo(c,ele,sdsEncodedObject(ele));
+    // 获得元素排名
     rank = zsetRank(zobj,ele->ptr,reverse);
+    // rank >= 0 响应排名
     if (rank >= 0) {
         addReplyLongLong(c,rank);
     } else {
@@ -3280,6 +3317,7 @@ void zrankGenericCommand(client *c, int reverse) {
     }
 }
 
+// zrank key member
 void zrankCommand(client *c) {
     zrankGenericCommand(c, 0);
 }

@@ -888,8 +888,8 @@ typedef struct zskiplist {
 } zskiplist;
 
 typedef struct zset {
-    dict *dict;
-    zskiplist *zsl;
+    dict *dict; // 字典 k: ele value: score
+    zskiplist *zsl; // skiplist
 } zset;
 
 typedef struct clientBufferLimitsConfig {
