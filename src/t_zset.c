@@ -1221,12 +1221,16 @@ unsigned char *zzlDeleteRangeByRank(unsigned char *zl, unsigned int start, unsig
 /*-----------------------------------------------------------------------------
  * Common sorted set API
  *----------------------------------------------------------------------------*/
-
+// 获得长度
 unsigned long zsetLength(const robj *zobj) {
     unsigned long length = 0;
+    // 编码是ziplist
     if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
+        // ziplist的长度/2
         length = zzlLength(zobj->ptr);
+        // 编码是skiplist
     } else if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
+        // skiplist的长度
         length = ((const zset*)zobj->ptr)->zsl->length;
     } else {
         serverPanic("Unknown sorted set encoding");
@@ -3209,12 +3213,15 @@ void zrevrangebylexCommand(client *c) {
 }
 
 void zcardCommand(client *c) {
+    // 获得参数key
     robj *key = c->argv[1];
     robj *zobj;
 
+    // 从db中查找key对应的值对象 找不到 或 找到了 类型不是zset 返回
     if ((zobj = lookupKeyReadOrReply(c,key,shared.czero)) == NULL ||
         checkType(c,zobj,OBJ_ZSET)) return;
 
+    // 响应长度
     addReplyLongLong(c,zsetLength(zobj));
 }
 
