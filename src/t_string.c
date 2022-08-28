@@ -293,43 +293,58 @@ void setrangeCommand(client *c) {
     addReplyLongLong(c,sdslen(o->ptr));
 }
 
+// getrange key start end
 void getrangeCommand(client *c) {
     robj *o;
     long long start, end;
     char *str, llbuf[32];
     size_t strlen;
 
+    // 获取start参数, 如果不是整数 则返回
     if (getLongLongFromObjectOrReply(c,c->argv[2],&start,NULL) != C_OK)
         return;
+    // 获取end参数 ...
     if (getLongLongFromObjectOrReply(c,c->argv[3],&end,NULL) != C_OK)
         return;
+    // key对应的值对象
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.emptybulk)) == NULL ||
         checkType(c,o,OBJ_STRING)) return;
 
+    // 是字符串, 但是编码是整型
     if (o->encoding == OBJ_ENCODING_INT) {
         str = llbuf;
+        // 整数转字符串获得长度
         strlen = ll2string(llbuf,sizeof(llbuf),(long)o->ptr);
     } else {
+        // 编码是字符串
+
         str = o->ptr;
         strlen = sdslen(str);
     }
 
     /* Convert negative indexes */
+    // 负索引转正索引
+    // start < 0 并且 end < 0 并且start>end
     if (start < 0 && end < 0 && start > end) {
         addReply(c,shared.emptybulk);
         return;
     }
+    // 正索引=长度+负索引
     if (start < 0) start = strlen+start;
     if (end < 0) end = strlen+end;
+    // 算完后 还是负值
     if (start < 0) start = 0;
     if (end < 0) end = 0;
+    // end是最后一个
     if ((unsigned long long)end >= strlen) end = strlen-1;
 
     /* Precondition: end >= 0 && end < strlen, so the only condition where
      * nothing can be returned is: start > end. */
+    // 起始大于截止 或者长度是0
     if (start > end || strlen == 0) {
         addReply(c,shared.emptybulk);
     } else {
+        // 否则 返回范围内字符串内容
         addReplyBulkCBuffer(c,(char*)str+start,end-start+1);
     }
 }
