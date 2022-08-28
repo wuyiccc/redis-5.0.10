@@ -35,6 +35,7 @@
  *----------------------------------------------------------------------------*/
 
 static int checkStringLength(client *c, long long size) {
+    // size > 512M
     if (size > 512*1024*1024) {
         addReplyError(c,"string exceeds maximum allowed size (512MB)");
         return C_ERR;
@@ -482,36 +483,57 @@ void incrbyfloatCommand(client *c) {
     rewriteClientCommandArgument(c,2,new);
 }
 
+/**
+ * append key value
+ * @param c
+ */
 void appendCommand(client *c) {
     size_t totlen;
     robj *o, *append;
 
+    // 从db中获得key
     o = lookupKeyWrite(c->db,c->argv[1]);
+    // 不存在kv
     if (o == NULL) {
         /* Create the key */
+        // 把value转为值对象(尝试整型转化)
         c->argv[2] = tryObjectEncoding(c->argv[2]);
+        // 添加kv到db
         dbAdd(c->db,c->argv[1],c->argv[2]);
+        // 自增引用计数
         incrRefCount(c->argv[2]);
+        // 获取值对象的长度
         totlen = stringObjectLen(c->argv[2]);
+        // 值对象不为空
     } else {
         /* Key exists, check type */
+        // 检测值对象类型不是字符串则返回
         if (checkType(c,o,OBJ_STRING))
             return;
 
         /* "append" is an argument, so always an sds */
+        // 获取append参数
         append = c->argv[2];
+        // 计算总长度
         totlen = stringObjectLen(o)+sdslen(append->ptr);
+        // 总长度>512m则返回
         if (checkStringLength(c,totlen) != C_OK)
             return;
 
         /* Append the value */
+        // 解除key的共享, o是新的值对象
         o = dbUnshareStringValue(c->db,c->argv[1],o);
+        // 将值对象和追加的sds拼接, 并赋值给o
         o->ptr = sdscatlen(o->ptr,append->ptr,sdslen(append->ptr));
+        // 获得新的值对象的长度
         totlen = sdslen(o->ptr);
     }
+    // 键修改信号
     signalModifiedKey(c->db,c->argv[1]);
+    // 键空间通知
     notifyKeyspaceEvent(NOTIFY_STRING,"append",c->argv[1],c->db->id);
     server.dirty++;
+    // 响应总长度
     addReplyLongLong(c,totlen);
 }
 

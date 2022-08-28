@@ -390,14 +390,20 @@ int dbDelete(redisDb *db, robj *key) {
  * At this point the caller is ready to modify the object, for example
  * using an sdscat() call to append some data, or anything else.
  */
+// 解除key的共享
 robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
     serverAssert(o->type == OBJ_STRING);
+    // 值对象引用不是1 或者 值对象编码不是RAW
     if (o->refcount != 1 || o->encoding != OBJ_ENCODING_RAW) {
         robj *decoded = getDecodedObject(o);
+        // 创建一个新的sds对象, 编码是raw
         o = createRawStringObject(decoded->ptr, sdslen(decoded->ptr));
+        // 引用-1
         decrRefCount(decoded);
+        // 覆盖原来的值对象
         dbOverwrite(db,key,o);
     }
+    // 返回新的值对象
     return o;
 }
 
