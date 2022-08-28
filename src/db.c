@@ -723,13 +723,19 @@ int parseScanCursorOrReply(client *c, robj *o, unsigned long *cursor) {
  *
  * In the case of a Hash object the function returns both the field and value
  * of every element on the Hash. */
+// 迭代游标
 void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
     int i, j;
+    // 存放未过滤的key
     list *keys = listCreate();
     listNode *node, *nextnode;
+    // 默认条数10条
     long count = 10;
+    // 匹配串
     sds pat = NULL;
+    // 匹配长度
     int patlen = 0, use_pattern = 0;
+    // 字典指针
     dict *ht;
 
     /* Object must be NULL (to iterate keys names), or the type of the object
@@ -742,8 +748,11 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
 
     /* Step 1: Parse options. */
     while (i < c->argc) {
+        // 参数倒着获取
         j = c->argc - i;
+        // 参数是count
         if (!strcasecmp(c->argv[i]->ptr, "count") && j >= 2) {
+            // 获取参数的值赋值给count
             if (getLongFromObjectOrReply(c, c->argv[i+1], &count, NULL)
                 != C_OK)
             {
@@ -756,8 +765,11 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
             }
 
             i += 2;
+            // 参数是match
         } else if (!strcasecmp(c->argv[i]->ptr, "match") && j >= 2) {
+            // 获取匹配串
             pat = c->argv[i+1]->ptr;
+            // 获取匹配串的长度
             patlen = sdslen(pat);
 
             /* The pattern always matches if it is exactly "*", so it is
@@ -781,6 +793,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
 
     /* Handle the case of a hash table. */
     ht = NULL;
+    // 值对象是空
     if (o == NULL) {
         ht = c->db->dict;
     } else if (o->type == OBJ_SET && o->encoding == OBJ_ENCODING_HT) {
@@ -808,6 +821,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
         privdata[0] = keys;
         privdata[1] = o;
         do {
+            // 获得数据 更新游标
             cursor = dictScan(ht, cursor, scanCallback, NULL, privdata);
         } while (cursor &&
               maxiterations-- &&
@@ -826,21 +840,28 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
         long long vll;
 
         while(p) {
+            // 获得元素的值
             ziplistGet(p,&vstr,&vlen,&vll);
+            // 添加到list中
             listAddNodeTail(keys,
                 (vstr != NULL) ? createStringObject((char*)vstr,vlen) :
                                  createStringObjectFromLongLong(vll));
+            // 下一个
             p = ziplistNext(o->ptr,p);
         }
+        // 全遍历
         cursor = 0;
     } else {
         serverPanic("Not handled encoding in SCAN.");
     }
 
     /* Step 3: Filter elements. */
+    // 取出第一个节点
     node = listFirst(keys);
     while (node) {
+        // key的obj
         robj *kobj = listNodeValue(node);
+        // 下一个节点
         nextnode = listNextNode(node);
         int filter = 0;
 
@@ -871,8 +892,10 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
         /* If this is a hash or a sorted set, we have a flat list of
          * key-value elements, so if this element was filtered, remove the
          * value, or skip it if it was not filtered: we only match keys. */
+        // 类型是zset 或者 hash
         if (o && (o->type == OBJ_ZSET || o->type == OBJ_HASH)) {
             node = nextnode;
+            // 值
             nextnode = listNextNode(node);
             if (filter) {
                 kobj = listNodeValue(node);
@@ -884,12 +907,17 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
     }
 
     /* Step 4: Reply to the client. */
+    // 响应数
     addReplyMultiBulkLen(c, 2);
+    // 响应游标
     addReplyBulkLongLong(c,cursor);
 
+    // 响应keys的长度
     addReplyMultiBulkLen(c, listLength(keys));
+    // 整理keys
     while ((node = listFirst(keys)) != NULL) {
         robj *kobj = listNodeValue(node);
+        // 响应
         addReplyBulk(c, kobj);
         decrRefCount(kobj);
         listDelNode(keys, node);

@@ -3344,9 +3344,12 @@ void zscanCommand(client *c) {
     robj *o;
     unsigned long cursor;
 
+    // 取出游标
     if (parseScanCursorOrReply(c,c->argv[2],&cursor) == C_ERR) return;
+    // 在db中获得key对应的值对象, 如果是空 则响应emptyscan, 或者类型不是zset 则返回
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.emptyscan)) == NULL ||
         checkType(c,o,OBJ_ZSET)) return;
+    // 迭代游标
     scanGenericCommand(c,o,cursor);
 }
 
